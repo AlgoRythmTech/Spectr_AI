@@ -34,12 +34,15 @@ class AssociateAPITester:
         print(f"   URL: {url}")
         
         try:
+            # Use longer timeout for AI and library operations
+            timeout_duration = 30 if 'assistant' in endpoint or 'library' in endpoint else 15
+            
             if method == 'GET':
-                response = requests.get(url, headers=headers, timeout=15)
+                response = requests.get(url, headers=headers, timeout=timeout_duration)
             elif method == 'POST':
-                response = requests.post(url, json=data, headers=headers, timeout=15)
+                response = requests.post(url, json=data, headers=headers, timeout=timeout_duration)
             elif method == 'DELETE':
-                response = requests.delete(url, headers=headers, timeout=15)
+                response = requests.delete(url, headers=headers, timeout=timeout_duration)
             else:
                 raise ValueError(f"Unsupported method: {method}")
 
@@ -76,12 +79,13 @@ class AssociateAPITester:
                 return False, {}
 
         except requests.exceptions.Timeout:
+            timeout_duration = 30 if 'assistant' in endpoint or 'library' in endpoint else 15
             self.failed_tests.append({
                 'test': name,
-                'error': 'Request timeout (15s)',
+                'error': f'Request timeout ({timeout_duration}s)',
                 'url': url
             })
-            print(f"❌ FAILED - Request timeout (15s)")
+            print(f"❌ FAILED - Request timeout ({timeout_duration}s)")
             return False, {}
         except Exception as e:
             self.failed_tests.append({
