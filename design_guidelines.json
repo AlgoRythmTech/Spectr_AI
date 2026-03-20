@@ -1,0 +1,138 @@
+{
+  "identity": {
+    "persona": "E1 - The Anti-AI Designer",
+    "mission": "Create the Harvey.ai of India. High density, professional, authoritative, 'War Room' aesthetic.",
+    "principles": [
+      "Fusion over Imitation: Swiss Style meets Senior Partner Memo.",
+      "Emotion First: The feeling of 'Competence' and 'Precision'.",
+      "Content is King: The AI response is the product. Typography is the UI.",
+      "Density with Breathing Room: High information density managed by strict grids and whitespace."
+    ]
+  },
+  "typography": {
+    "font_family": {
+      "headings": "Inter, sans-serif",
+      "body": "Inter, sans-serif",
+      "mono": "IBM Plex Mono, monospace"
+    },
+    "scale": {
+      "h1": "text-4xl md:text-5xl font-bold tracking-tight text-[#1A1A2E]",
+      "h2": "text-3xl font-semibold tracking-tight text-[#1A1A2E]",
+      "h3": "text-xl font-semibold text-[#0D0D0D]",
+      "body_lg": "text-lg leading-relaxed text-[#0D0D0D]",
+      "body_base": "text-[15px] leading-7 text-[#0D0D0D]",
+      "body_sm": "text-sm text-[#4A4A4A]",
+      "caption": "text-xs font-medium uppercase tracking-wider text-[#6B7280]",
+      "mono_base": "font-mono text-[13px] text-[#4A4A4A]"
+    },
+    "rules": [
+      "NO bubbly rounded fonts.",
+      "Headings must be tight (tracking-tight).",
+      "Legal citations MUST use IBM Plex Mono.",
+      "Use font-weight to create hierarchy, not just size."
+    ]
+  },
+  "colors": {
+    "theme": "light",
+    "palette": {
+      "background": "#FFFFFF",
+      "foreground": "#0D0D0D",
+      "primary": "#1A1A2E",
+      "primary_foreground": "#FFFFFF",
+      "secondary": "#F3F4F6",
+      "secondary_foreground": "#1A1A2E",
+      "accent": "#F8FAFC",
+      "accent_foreground": "#0D0D0D",
+      "muted": "#F3F4F6",
+      "muted_foreground": "#64748B",
+      "border": "#E2E8F0",
+      "input": "#E2E8F0",
+      "ring": "#0D0D0D",
+      "success": "#166534",
+      "warning": "#B45309",
+      "destructive": "#991B1B"
+    },
+    "semantic": {
+      "sidebar_bg": "#F8FAFC",
+      "sidebar_border": "#E2E8F0",
+      "card_bg": "#FFFFFF",
+      "header_bg": "rgba(255,255,255,0.9)"
+    }
+  },
+  "layout": {
+    "spacing_scale": "Tailwind default but doubled for sections (py-24, py-32)",
+    "container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "dashboard_grid": {
+      "sidebar_width": "240px",
+      "panel_right_width": "360px",
+      "main_content": "flex-1 min-w-0"
+    },
+    "bento_grid": {
+      "gap": "gap-6",
+      "cols": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4"
+    }
+  },
+  "components": {
+    "radius": "rounded-sm",
+    "shadows": {
+      "soft": "shadow-[0_2px_8px_rgba(0,0,0,0.04)]",
+      "medium": "shadow-[0_4px_16px_rgba(0,0,0,0.08)]",
+      "float": "shadow-[0_12px_24px_rgba(0,0,0,0.12)]"
+    },
+    "buttons": {
+      "primary": "bg-[#1A1A2E] text-white hover:bg-[#0D0D0D] rounded-sm px-6 py-2.5 font-medium transition-all text-sm shadow-none",
+      "secondary": "bg-white border border-[#E2E8F0] text-[#0D0D0D] hover:bg-[#F8FAFC] rounded-sm px-6 py-2.5 font-medium transition-all text-sm",
+      "ghost": "hover:bg-[#F3F4F6] text-[#4A4A4A] hover:text-[#0D0D0D]"
+    },
+    "cards": {
+      "base": "bg-white border border-[#E2E8F0] rounded-sm p-6",
+      "interactive": "hover:border-[#CBD5E1] transition-colors cursor-pointer"
+    },
+    "inputs": {
+      "style": "bg-white border border-[#E2E8F0] rounded-sm focus:ring-1 focus:ring-[#0D0D0D] focus:border-[#0D0D0D] transition-all placeholder:text-gray-400"
+    }
+  },
+  "visual_enhancers": {
+    "textures": "Subtle grain on sidebar backgrounds (opacity 0.02)",
+    "gradients": "NONE. Strict flat colors.",
+    "glassmorphism": "Only for sticky headers: backdrop-blur-md bg-white/80 border-b border-[#E2E8F0]",
+    "borders": "1px solid #E2E8F0. No thick borders."
+  },
+  "motion": {
+    "type": "Subtle, Professional, Instant",
+    "transition": "transition-all duration-200 ease-out",
+    "fade_in": {
+      "initial": { "opacity": 0, "y": 10 },
+      "animate": { "opacity": 1, "y": 0 },
+      "transition": { "duration": 0.4 }
+    }
+  },
+  "image_urls": {
+    "hero_background": "https://images.unsplash.com/photo-1767658647133-2168a9cfc1d1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDZ8MHwxfHNlYXJjaHwyfHxhYnN0cmFjdCUyMGdlb21ldHJpYyUyMHN0cnVjdHVyZSUyMHdoaXRlJTIwZ3JleXxlbnwwfHx8fDE3NzM5OTY1MjV8MA&ixlib=rb-4.1.0&q=85",
+    "office_interior": "https://images.unsplash.com/photo-1598139384902-5a8217874645?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2ODh8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBtaW5pbWFsJTIwbGF3JTIwb2ZmaWNlJTIwYXJjaGl0ZWN0dXJlfGVufDB8fHx8MTc3Mzk5NjUyNHww&ixlib=rb-4.1.0&q=85",
+    "abstract_structure": "https://images.unsplash.com/photo-1716034348277-de478adc743e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDZ8MHwxfHNlYXJjaHwzfHxhYnN0cmFjdCUyMGdlb21ldHJpYyUyMHN0cnVjdHVyZSUyMHdoaXRlJTIwZ3JleXxlbnwwfHx8fDE3NzM5OTY1MjV8MA&ixlib=rb-4.1.0&q=85",
+    "feature_card_bg": "https://images.pexels.com/photos/3137073/pexels-photo-3137073.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+  },
+  "instructions_to_main_agent": [
+    "Install 'lucide-react' for icons.",
+    "Install 'clsx' and 'tailwind-merge' for class management.",
+    "Use 'sonner' for toasts.",
+    "Implement the 'Senior Partner Memo' style for AI responses: Structured, Dense, Monospace citations.",
+    "NO gradients. Pure white background.",
+    "Use 'Inter' for UI and 'IBM Plex Mono' for data/code/legal citations.",
+    "Ensure the layout is dense but readable. Use 240px Sidebar.",
+    "Login page should be simple, professional, centered card on subtle grey bg."
+  ],
+  "universal_guidelines": [
+    "You tend to converge toward generic, 'on distribution' outputs. Avoid this.",
+    "Dark colors look good when used independently without gradients.",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur).",
+    "You MUST NOT apply universal transition. Eg: transition: all.",
+    "You MUST NOT center align the app container.",
+    "Always use modern button styles like pill-shaped, or sharp button.",
+    "NEVER use AI assistant Emoji characters like 🤖🧠 etc.",
+    "Every interaction needs micro-animations."
+  ]
+}
