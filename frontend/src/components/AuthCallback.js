@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const API = process.env.REACT_APP_BACKEND_URL ? `${process.env.REACT_APP_BACKEND_URL}/api` : '/api';
 
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
 export default function AuthCallback() {

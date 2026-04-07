@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Associate MS Word Add-in</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://appsforoffice.microsoft.com/lib/1.1/hosted/office.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #FAFBFC;
+      color: #111827;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* Header */
+    .header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 16px; border-bottom: 1px solid #E5E7EB; background: #FFFFFF;
+    }
+    .header-logo {
+      width: 24px; height: 24px; background: #000; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .header-logo svg { width: 12px; height: 12px; color: white; }
+    .header-title { font-size: 14px; font-weight: 700; letter-spacing: -0.02em; }
+    
+    /* Tabs */
+    .tabs { display: flex; border-bottom: 1px solid #E5E7EB; background: #FFFFFF; }
+    .tab {
+      flex: 1; padding: 10px 4px; text-align: center; font-size: 11px;
+      font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+      cursor: pointer; border-bottom: 2px solid transparent; color: #6B7280;
+    }
+    .tab.active { color: #000; border-bottom-color: #000; }
+    .tab:hover { color: #000; }
+
+    .tab-content { display: none; padding: 16px; height: calc(100vh - 90px); overflow-y: auto; }
+    .tab-content.active { display: block; }
+
+    /* Selection Context Floating Bar */
+    .context-bar {
+      padding: 12px; background: #F9FAFB; border: 1px solid #E5E7EB;
+      border-radius: 8px; margin-bottom: 16px; display: none;
+    }
+    .context-bar.active { display: block; animation: slideIn 0.2s ease; }
+    .context-text { font-size: 12px; color: #4B5563; font-style: italic; margin-bottom: 10px; max-height: 60px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+    
+    .quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .action-btn {
+      padding: 6px 8px; background: #FFFFFF; border: 1px solid #D1D5DB;
+      border-radius: 6px; font-size: 11px; font-weight: 600; color: #374151;
+      cursor: pointer; text-align: center; transition: all 0.1s;
+    }
+    .action-btn:hover { background: #F3F4F6; border-color: #000; color: #000; }
+    
+    .action-btn.redline { background: #000; color: #FFF; border-color: #000; }
+    .action-btn.redline:hover { background: #1f2937; }
+
+    @keyframes slideIn { from { transform: translateY(-10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    /* Forms & Utilities */
+    .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6B7280; margin-bottom: 8px; }
+    .input-field { width: 100%; padding: 10px 12px; border: 1px solid #D1D5DB; border-radius: 6px; font-size: 13px; font-family: inherit; margin-bottom: 12px; outline: none; resize: vertical;}
+    .input-field:focus { border-color: #000; box-shadow: 0 0 0 1px #000; }
+    
+    .primary-btn {
+      width: 100%; padding: 10px 16px; background: #000; color: #fff;
+      border: none; border-radius: 6px; font-size: 13px; font-weight: 600;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .primary-btn:hover:not(:disabled) { background: #1f2937; }
+    .primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Results */
+    .result-card { background: #FFF; border: 1px solid #E5E7EB; border-radius: 8px; padding: 12px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+    .result-card h4 { font-size: 13px; margin-bottom: 6px; }
+    .result-card p { font-size: 13px; color: #4B5563; }
+    
+    .spinner {
+      width: 14px; height: 14px; border: 2px solid transparent;
+      border-top-color: currentColor; border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Playbook UI */
+    .playbook-upload { border: 1px dashed #D1D5DB; border-radius: 8px; padding: 16px; text-align: center; cursor: pointer; margin-bottom: 16px; background: #FAFAFA; }
+    .playbook-upload:hover { border-color: #000; background: #FFF; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="header-logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+    <span class="header-title">Associate</span>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="draft" onclick="switchTab('draft')">Draft</div>
+    <div class="tab" data-tab="playbook" onclick="switchTab('playbook')">Playbook</div>
+    <div class="tab" data-tab="reference" onclick="switchTab('reference')">Ref</div>
+  </div>
+
+  <!-- DRAFT TAB (Redlining & Rewrite) -->
+  <div id="tab-draft" class="tab-content active">
+    
+    <!-- Floating Context Menu -->
+    <div id="selection-context" class="context-bar">
+      <div class="section-title">Selected Document Text</div>
+      <div class="context-text" id="context-snippet">No text selected. Highlight text in the document.</div>
+      
+      <div class="quick-actions">
+        <button class="action-btn redline" onclick="rewriteWithRedline('Improve legal phrasing and formatting')">✍️ Polish</button>
+        <button class="action-btn" onclick="rewriteWithRedline('Make this more aggressive and favorable to our client')">🛡️ Aggressive</button>
+        <button class="action-btn" onclick="customRewritePrompt()">💬 Custom Edit</button>
+        <button class="action-btn" onclick="verifyCitation()">🔍 Verify Cite</button>
+      </div>
+    </div>
+
+    <!-- Custom Prompting -->
+    <div id="custom-edit-area" style="display:none; margin-bottom: 16px;">
+      <textarea id="custom-prompt" class="input-field" rows="3" placeholder="Instruct the AI how to edit the selected text..."></textarea>
+      <button class="primary-btn" id="run-edit-btn" onclick="executeCustomRedline()">Generate Native Redline</button>
+    </div>
+
+    <hr style="border:0; border-top:1px solid #E5E7EB; margin:16px 0;" />
+
+    <div class="section-title">Generate New Content</div>
+    <textarea id="generate-prompt" class="input-field" rows="4" placeholder="e.g. Draft an arbitration clause seated in Mumbai under SIAC rules..."></textarea>
+    <button class="primary-btn" id="generate-btn" onclick="generateAndInsert()">Insert Draft</button>
+    
+    <div id="draft-loading" style="display:none; text-align:center; padding:20px; color:#6B7280; font-size:12px;">
+      <div class="spinner" style="border-top-color:#000; margin-bottom:8px;"></div>
+      <div>AI is drafting...</div>
+    </div>
+  </div>
+
+  <!-- PLAYBOOK TAB -->
+  <div id="tab-playbook" class="tab-content">
+    <p style="font-size:13px; color:#4B5563; margin-bottom:16px;">Scan the document against firm standards. Associate will add native MS Word margin comments for any deviations.</p>
+    
+    <div class="section-title">Active Playbook</div>
+    <select id="playbook-selector" class="input-field">
+      <option value="standard">Standard Vendor Agreement (Pro-Customer)</option>
+      <option value="nda">Mutual NDA (Neutral)</option>
+      <option value="employment">Executive Employment Contract</option>
+    </select>
+
+    <button class="primary-btn" id="scan-btn" onclick="runPlaybookScan()" style="margin-top:8px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M3 11h18"/><path d="M18 10l-4 4"/></svg>
+      Scan & Comment Document
+    </button>
+    
+    <div id="playbook-loading" style="display:none; text-align:center; padding:20px; color:#6B7280; font-size:12px;">
+      <div class="spinner" style="border-top-color:#000; margin-bottom:8px;"></div>
+      <div>Reading paragraphs & resolving rules...</div>
+    </div>
+    
+    <div id="playbook-success" style="display:none; text-align:center; padding:20px; color:#10B981; font-weight:600; font-size:12px;">
+      ✓ MS Word Comments Injected. Check margins.
+    </div>
+  </div>
+
+  <!-- REFERENCE TAB -->
+  <div id="tab-reference" class="tab-content">
+    <div class="section-title">Statute Search</div>
+    <div style="display:flex; gap:6px; margin-bottom:12px;">
+      <input type="text" id="statute-search" class="input-field" style="margin-bottom:0;" placeholder="e.g. CGST Section 16" />
+      <button class="primary-btn" style="width:auto;" onclick="searchStatute()">Find</button>
+    </div>
+    <div id="statute-results"></div>
+  </div>
+
+  <script>
+    // Configuration
+    const API_BASE = 'https://associate.algorythmtech.com/api'; // Replace with backend URL when deployed
+    
+    // Global State
+    let currentSelection = '';
+    
+    // Setup Office.js
+    Office.onReady(function(info) {
+      if (info.host === Office.HostType.Word) {
+        console.log('Associate Add-in Pro Mode Loaded');
+        monitorSelection(); // Poll for text selection automatically
+      }
+    });
+
+    // Tab Switching logic
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
+      document.getElementById(`tab-${tabId}`).classList.add('active');
+    }
+
+    // Custom action UI toggle
+    function customRewritePrompt() {
+      const el = document.getElementById('custom-edit-area');
+      el.style.display = el.style.display === 'none' ? 'block' : 'none';
+      if(el.style.display === 'block') document.getElementById('custom-prompt').focus();
+    }
+
+    // ==========================================
+    // 1. NATIVE WORD REDLINING & TRACK CHANGES
+    // ==========================================
+    
+    // Auto-polls to highlight active context
+    function monitorSelection() {
+      setInterval(async () => {
+        try {
+          await Word.run(async (context) => {
+            const range = context.document.getSelection();
+            range.load('text');
+            await context.sync();
+            
+            const text = range.text.trim();
+            const ctxBar = document.getElementById('selection-context');
+            const snippet = document.getElementById('context-snippet');
+            
+            if (text && text.length > 5) {
+              currentSelection = text;
+              ctxBar.classList.add('active');
+              snippet.textContent = `"...${text.substring(0, 120)}${text.length > 120 ? '...' : ''}"`;
+            } else {
+              currentSelection = '';
+              ctxBar.classList.remove('active');
+              document.getElementById('custom-edit-area').style.display = 'none';
+            }
+          });
+        } catch (e) {
+             // Silently catch errors if focus is lost
+        }
+      }, 1000);
+    }
+
+    async function executeCustomRedline() {
+      const instruction = document.getElementById('custom-prompt').value;
+      if (!instruction) return;
+      await rewriteWithRedline(instruction);
+    }
+
+    // The Magic Function: Uses Office.js to emulate a human lawyer's track changes
+    async function rewriteWithRedline(instruction) {
+      if (!currentSelection) return;
+      
+      const btn = document.getElementById('run-edit-btn');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '<div class="spinner"></div> Drafting Native Redline...';
+      btn.disabled = true;
+
+      try {
+        // 1. Call Associate AI to rewrite the text
+        // (Mock API call for demonstration. Hook up to /api/rewrite if deployed)
+        const rewriteRequest = {
+            instruction: instruction,
+            draft_text: currentSelection
+        };
+        
+        let response = await fetch(`${API_BASE}/office/word/redline`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(rewriteRequest)
+        });
+        
+        let data = await response.json();
+        if (!response.ok) throw new Error(data.detail || "API Error");
+        let newContent = data.replacement_text;
+        
+        // 2. Perform Native Redlining via Office.js
+        await Word.run(async (context) => {
+          const selection = context.document.getSelection();
+          
+          // Enable Track Changes programmatically 
+          context.document.changeTrackingMode = "TrackAll";
+          
+          // Replace text. Because Track Changes is on, Word will automatically
+          // strike-through the old text and underline the new text!
+          selection.insertText(newContent, Word.InsertLocation.replace);
+          
+          await context.sync();
+          
+          // Optional: Turn Track Changes back off to clear UI clutter if desired
+          // context.document.changeTrackingMode = "Off"; 
+        });
+
+      } catch (error) {
+        console.error("Redline failed: ", error);
+        alert("Failed to execute native Word editing.");
+      } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        customRewritePrompt(); // fold it back
+      }
+    }
+
+    // ==========================================
+    // 2. NATIVE WORD COMMENTS FOR PLAYBOOK 
+    // ==========================================
+    async function runPlaybookScan() {
+      const btn = document.getElementById('scan-btn');
+      const loading = document.getElementById('playbook-loading');
+      const success = document.getElementById('playbook-success');
+      
+      btn.style.display = 'none';
+      loading.style.display = 'block';
+      success.style.display = 'none';
+
+      try {
+        await Word.run(async (context) => {
+          // 1. Get entire document text
+          const body = context.document.body;
+          body.load("text");
+          await context.sync();
+          
+          const fullDocumentText = body.text;
+          
+          const playbookType = document.getElementById('playbook-selector').value;
+          
+          const scanResponse = await fetch(`${API_BASE}/office/word/comment`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ document_text: fullDocumentText, playbook_type: playbookType })
+          });
+          
+          if (!scanResponse.ok) throw new Error("API Error");
+          const scanData = await scanResponse.json();
+          const mockDeviations = scanData.deviations || [];
+
+          // 4. Inject Comments into the Microsoft Word UI Natively
+          for (const dev of mockDeviations) {
+            // Search the Word document for the exact phrase the AI flagged
+            const searchResults = body.search(dev.searchPhrase, { matchCase: false, matchWholeWord: false });
+            searchResults.load("items");
+            await context.sync();
+            
+            // If found, drop a native MS Word comment exactly on that text
+            if (searchResults.items.length > 0) {
+              const range = searchResults.items[0];
+              // insertComment is a powerful Office.js API
+              range.insertComment(dev.comment); 
+            }
+          }
+          
+          await context.sync();
+        });
+
+        loading.style.display = 'none';
+        success.style.display = 'block';
+        setTimeout(() => { btn.style.display='flex'; success.style.display='none'; }, 4000);
+
+      } catch (error) {
+        console.error(error);
+        alert("Office.js capability restricted or unavailable.");
+        btn.style.display = 'flex';
+        loading.style.display = 'none';
+      }
+    }
+
+    // ==========================================
+    // 3. GENERATIVE DRAFTING (Standard Insert)
+    // ==========================================
+    async function generateAndInsert() {
+      const prompt = document.getElementById('generate-prompt').value.trim();
+      if (!prompt) return;
+      
+      const btn = document.getElementById('generate-btn');
+      const loader = document.getElementById('draft-loading');
+      btn.style.display = 'none';
+      loader.style.display = 'block';
+
+      try {
+        const aiDraft = await mockAIResponse(`[AI Generated Draft for: ${prompt}]`, 1500);
+        
+        await Word.run(async (context) => {
+          const selection = context.document.getSelection();
+          selection.insertText(aiDraft, Word.InsertLocation.after);
+          
+          // Select the newly inserted text and apply a slight highlight so the lawyer reviews it
+          // Note: Office.js doesn't easily return the exact range of inserted text, 
+          // so this requires range math in production.
+          await context.sync();
+        });
+      } catch (e) {
+          console.error(e);
+      } finally {
+        document.getElementById('generate-prompt').value = '';
+        btn.style.display = 'flex';
+        loader.style.display = 'none';
+      }
+    }
+
+
+    // Reference Helpers
+    async function mockAIResponse(text, delay) {
+        return new Promise(resolve => {
+            setTimeout(() => {
+                resolve(text + "\n\n1. The Obligor shall indemnify the Obligee...\n2. Notwithstanding anything contained herein...");
+            }, delay);
+        });
+    }
+
+  </script>
+</body>
+</html>

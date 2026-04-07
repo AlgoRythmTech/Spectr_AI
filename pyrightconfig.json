@@ -1,0 +1,16 @@
+{
+  "pythonVersion": "3.12",
+  "pythonPlatform": "Windows",
+  "venvPath": "",
+  "pythonPath": "C:\\Users\\aasri\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+  "extraPaths": [
+    "C:\\Users\\aasri\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages",
+    "."
+  ],
+  "reportMissingImports": "none",
+  "reportMissingModuleSource": "none",
+  "reportGeneralTypeIssues": "none",
+  "reportOptionalSubscript": "none",
+  "reportIndexIssue": "none",
+  "typeCheckingMode": "off"
+}

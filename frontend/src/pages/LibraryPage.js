@@ -4,7 +4,7 @@ import {
   BookOpen, Plus, FileText, Tag, Search, Trash2, X
 } from 'lucide-react';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const API = process.env.REACT_APP_BACKEND_URL ? `${process.env.REACT_APP_BACKEND_URL}/api` : '/api';
 
 const ITEM_TYPES = [
   { id: 'template', label: 'Template' },

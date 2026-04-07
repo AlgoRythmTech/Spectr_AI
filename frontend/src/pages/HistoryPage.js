@@ -5,7 +5,7 @@ import {
   History, Clock, Filter, Search, FileText, Scale, Calculator, ChevronRight, Eye
 } from 'lucide-react';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const API = process.env.REACT_APP_BACKEND_URL ? `${process.env.REACT_APP_BACKEND_URL}/api` : '/api';
 
 export default function HistoryPage() {
   const { user } = useAuth();

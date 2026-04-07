@@ -1,0 +1,40 @@
+======================================================================
+OPENROUTER FREE MODEL TEST
+======================================================================
+
+[FAIL] Gemma 3 27B: HTTP 429 - Provider returned error
+
+[FAIL] Llama 3.3 70B: HTTP 429 - Provider returned error
+
+[OK] Qwen3.6 Plus - 77.35s
+     REPLY: Under **Section 73(1) of the CGST Act, 2017**, the proper officer must issue the Show Cause Notice (SCN) within **30 months from the due date for furnishing the Annual Return (GSTR-9)** for the relevant financial year.
+
+**For FY 2021-22:**
+- **Statutory Due Date for GSTR-9:** `31st December 2022` (as per Rule 80(1) of the CGST Rules, and confirmed by CBIC notifications)
+- **Limitation Period:** 30 calendar months from 31.12.2022
+- **Exact Cut-off Date to Issue SCN:** **`30th June 2025`**
+
+**📜 Legal Reference:**
+- `Section 73(1), CGST Act, 2017` – *"where it appears to the proper officer that a person has not paid or has under-paid any tax... he may serve a show cause notice **within thirty months from the due date for furnishing of annual return** for the financial year..."*
+- Computation follows calendar months as per the General Clauses Act, 1897.
+
+⚠️ *Note: This limitation is subject to any subsequent CBIC notification extending the GSTR-9 due date or the limitation period. As
+
+[OK] NVIDIA Nemotron 120B - 24.88s
+     REPLY: Okay, the user is asking about Section 73 of the CGST Act, specifically the exact time limit for issuing a Show Cause Notice (SCN) for FY 2021-22, and they want the sub-section cited along with the date.
+
+Let me recall the CGST Act provisions regarding time limits for issuing SCNs.
+
+Section 73 of the CGST Act, 2017 deals with the procedure for determination of tax not paid or short-paid or erroneously refunded or input tax credit wrongly availed or utilized for any reason other than fraud or any willful misstatement or suppression of facts.
+
+However, the time limit for issuing a Show Cause Notice (SCN) under Section 73 is not directly stated in Section 73 itself. The time limits are actually specified in Section 74 for cases involving fraud, willful misstatement, or suppression of facts, and Section 73 for normal cases.
+
+Wait, let me correct that:
+
+- Section 73: For cases other than fraud, willful misstatement, or suppression of facts.
+- Section 74: For cases involving fraud, willful misstatement, or suppression of facts.
+
+The time limit for issuing an SCN under Section 73 is actually derived from the proviso to Section 73(10) or rather, the time limit to pass an order is given in Section 73(10), and:
+
+======================================================================
+DONE

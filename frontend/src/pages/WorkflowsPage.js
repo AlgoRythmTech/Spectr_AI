@@ -1,264 +1,252 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import ResponseCard from '../components/ResponseCard';
-import {
-  Workflow, Scale, Calculator, ChevronRight, Loader2, ArrowLeft, FileText
-} from 'lucide-react';
+import { Workflow, Play, Loader2, CheckCircle2, ChevronRight, FileText } from 'lucide-react';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const API = process.env.REACT_APP_BACKEND_URL ? `${process.env.REACT_APP_BACKEND_URL}/api` : '/api';
 
 export default function WorkflowsPage() {
-  const { user } = useAuth();
-  const [workflows, setWorkflows] = useState([]);
-  const [selectedWorkflow, setSelectedWorkflow] = useState(null);
-  const [formValues, setFormValues] = useState({});
-  const [mode, setMode] = useState('partner');
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [tab, setTab] = useState('all');
+  const { getToken } = useAuth();
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [initialInput, setInitialInput] = useState('');
+  
+  const [activeChain, setActiveChain] = useState(null);
+  const [chainLoading, setChainLoading] = useState(false);
+  const [editedOutput, setEditedOutput] = useState('');
 
-  useEffect(() => { fetchWorkflows(); }, []);
+  useEffect(() => {
+    fetchTemplates();
+  }, []);
 
-  const fetchWorkflows = async () => {
+  const fetchTemplates = async () => {
     try {
-      const res = await fetch(`${API}/workflows`, { credentials: 'include' });
-      if (res.ok) setWorkflows(await res.json());
-    } catch {}
-  };
-
-  const handleGenerate = async () => {
-    if (!selectedWorkflow) return;
-    setLoading(true);
-    setResult(null);
-    try {
-      const res = await fetch(`${API}/workflows/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          workflow_type: selectedWorkflow.id,
-          fields: formValues,
-          mode,
-        }),
+      const token = await getToken();
+      const res = await fetch(`${API}/workflows/chain/templates`, {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (res.ok) setResult(await res.json());
-    } catch {}
+      if (res.ok) {
+        const data = await res.json();
+        setTemplates(data.templates || []);
+      }
+    } catch (err) {
+      console.error(err);
+    }
     setLoading(false);
   };
 
-  const handleExport = async (format) => {
-    if (!result) return;
-    const endpoint = format === 'docx' ? 'export/word' : 'export/pdf';
+  const handleStartChain = async () => {
+    if (!selectedTemplate || !initialInput.trim()) return;
+    setChainLoading(true);
     try {
-      const res = await fetch(`${API}/${endpoint}`, {
+      const token = await getToken();
+      const res = await fetch(`${API}/workflows/chain/start`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          content: result.response_text,
-          title: result.workflow_name || 'Workflow Document',
-          format,
-        }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ chain_type: selectedTemplate.id, initial_input: initialInput })
       });
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${(result.workflow_name || 'document').replace(/\s+/g, '_')}.${format === 'docx' ? 'docx' : 'pdf'}`;
-      a.click();
-    } catch {}
+      if (res.ok) {
+        const data = await res.json();
+        setActiveChain(data);
+        setEditedOutput(data.step_output);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    setChainLoading(false);
   };
 
-  const filtered = tab === 'all' ? workflows : workflows.filter(w => w.category === tab);
+  const handleNextStep = async () => {
+    if (!activeChain) return;
+    setChainLoading(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${API}/workflows/chain/next`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ chain_id: activeChain.chain_id, edited_output: editedOutput })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === 'completed') {
+           setActiveChain(data);
+        } else {
+           setActiveChain(data);
+           setEditedOutput(data.step_output);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    setChainLoading(false);
+  };
 
-  if (selectedWorkflow) {
-    return (
-      <div className="flex flex-col h-full" data-testid="workflow-form-page">
-        <div className="h-14 border-b border-[#E2E8F0] px-6 flex items-center gap-4 shrink-0">
-          <button
-            onClick={() => { setSelectedWorkflow(null); setResult(null); setFormValues({}); }}
-            className="flex items-center gap-1 text-sm text-[#4A4A4A] hover:text-[#0D0D0D] transition-colors"
-            data-testid="back-to-workflows"
-          >
-            <ArrowLeft className="w-4 h-4" /> Back
-          </button>
-          <div className="h-4 w-px bg-[#E2E8F0]" />
-          <h1 className="text-sm font-semibold text-[#1A1A2E]">{selectedWorkflow.name}</h1>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-4xl mx-auto flex gap-8">
-            {/* Form */}
-            <div className="w-[380px] shrink-0">
-              <div className="space-y-4">
-                {selectedWorkflow.fields?.map((field) => (
-                  <div key={field.name}>
-                    <label className="text-xs font-semibold text-[#4A4A4A] uppercase tracking-wider mb-1.5 block">
-                      {field.label}
-                    </label>
-                    {field.type === 'textarea' ? (
-                      <textarea
-                        value={formValues[field.name] || ''}
-                        onChange={(e) => setFormValues(prev => ({ ...prev, [field.name]: e.target.value }))}
-                        className="w-full border border-[#E2E8F0] rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#0D0D0D] min-h-[80px] resize-y"
-                        data-testid={`field-${field.name}`}
-                      />
-                    ) : (
-                      <input
-                        type={field.type === 'date' ? 'date' : 'text'}
-                        value={formValues[field.name] || ''}
-                        onChange={(e) => setFormValues(prev => ({ ...prev, [field.name]: e.target.value }))}
-                        className="w-full border border-[#E2E8F0] rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#0D0D0D]"
-                        data-testid={`field-${field.name}`}
-                      />
-                    )}
-                  </div>
-                ))}
-
-                {/* Mode Toggle */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setMode('partner')}
-                    className={`flex-1 py-2 text-xs font-medium rounded-sm border transition-colors ${
-                      mode === 'partner' ? 'bg-[#1A1A2E] text-white border-[#1A1A2E]' : 'border-[#E2E8F0] text-[#4A4A4A]'
-                    }`}
-                    data-testid="mode-partner-btn"
-                  >
-                    Partner Mode
-                  </button>
-                  <button
-                    onClick={() => setMode('everyday')}
-                    className={`flex-1 py-2 text-xs font-medium rounded-sm border transition-colors ${
-                      mode === 'everyday' ? 'bg-[#166534] text-white border-[#166534]' : 'border-[#E2E8F0] text-[#4A4A4A]'
-                    }`}
-                    data-testid="mode-everyday-btn"
-                  >
-                    Everyday Mode
-                  </button>
-                </div>
-
-                <button
-                  onClick={handleGenerate}
-                  disabled={loading}
-                  className="w-full bg-[#1A1A2E] text-white font-medium py-2.5 rounded-sm hover:bg-[#0D0D0D] transition-colors disabled:opacity-40 flex items-center justify-center gap-2 text-sm"
-                  data-testid="generate-btn"
-                >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                  {loading ? 'Generating...' : 'Generate Document'}
-                </button>
-              </div>
-            </div>
-
-            {/* Result */}
-            <div className="flex-1 min-w-0">
-              {loading && (
-                <div className="border border-[#E2E8F0] rounded-sm p-6">
-                  <div className="flex items-center gap-3">
-                    <Loader2 className="w-4 h-4 text-[#1A1A2E] animate-spin" />
-                    <span className="text-xs font-semibold tracking-wider text-[#64748B] uppercase">Generating court-ready document...</span>
-                  </div>
-                  <div className="space-y-2 mt-4">
-                    <div className="h-3 bg-[#F1F5F9] rounded-sm w-full animate-pulse" />
-                    <div className="h-3 bg-[#F1F5F9] rounded-sm w-4/5 animate-pulse" />
-                    <div className="h-3 bg-[#F1F5F9] rounded-sm w-3/5 animate-pulse" />
-                  </div>
-                </div>
-              )}
-              {result && !loading && (
-                <div>
-                  <div className="mb-4 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-[#0D0D0D]">{result.workflow_name}</h3>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleExport('docx')}
-                        className="text-xs font-medium text-[#4A4A4A] px-3 py-1.5 border border-[#E2E8F0] rounded-sm hover:bg-[#F8FAFC]"
-                        data-testid="export-word-workflow"
-                      >
-                        Export Word
-                      </button>
-                      <button
-                        onClick={() => handleExport('pdf')}
-                        className="text-xs font-medium text-[#4A4A4A] px-3 py-1.5 border border-[#E2E8F0] rounded-sm hover:bg-[#F8FAFC]"
-                        data-testid="export-pdf-workflow"
-                      >
-                        Export PDF
-                      </button>
-                    </div>
-                  </div>
-                  <div className="border border-[#E2E8F0] rounded-sm p-6 bg-white">
-                    <div className="prose prose-sm max-w-none whitespace-pre-wrap text-[15px] leading-7 text-[#0D0D0D]">
-                      {result.response_text}
-                    </div>
-                  </div>
-                </div>
-              )}
-              {!result && !loading && (
-                <div className="flex items-center justify-center h-64">
-                  <div className="text-center">
-                    <FileText className="w-8 h-8 text-[#CBD5E1] mx-auto mb-3" />
-                    <p className="text-sm text-[#94A3B8]">Fill in the fields and click Generate</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const resetWorkflow = () => {
+    setSelectedTemplate(null);
+    setInitialInput('');
+    setActiveChain(null);
+    setEditedOutput('');
+  };
 
   return (
-    <div className="flex flex-col h-full" data-testid="workflows-page">
-      <div className="h-14 border-b border-[#E2E8F0] px-6 flex items-center gap-4 shrink-0">
-        <Workflow className="w-4 h-4 text-[#64748B]" />
-        <h1 className="text-base font-semibold text-[#1A1A2E]">Workflows</h1>
-        <div className="flex items-center gap-1 ml-4">
-          {[
-            { id: 'all', label: 'All' },
-            { id: 'litigation', label: 'Litigation' },
-            { id: 'taxation', label: 'Taxation & Compliance' },
-          ].map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors ${
-                tab === t.id ? 'bg-[#1A1A2E] text-white' : 'text-[#4A4A4A] hover:bg-[#F8FAFC]'
-              }`}
-              data-testid={`tab-${t.id}`}
-            >
-              {t.label}
-            </button>
-          ))}
+    <div className="flex flex-col h-full bg-[#FAFAFA] font-sans">
+      <div className="h-16 border-b border-[#E5E7EB] px-8 flex items-center shrink-0 bg-[#FFFFFF] justify-between">
+        <div className="flex items-center">
+            <Workflow className="w-5 h-5 text-[#000] mr-3" />
+            <h1 className="text-[15px] font-semibold text-[#000] tracking-tight">Agentic Workflows</h1>
         </div>
+        {activeChain && (
+            <button onClick={resetWorkflow} className="text-[13px] font-semibold text-[#4B5563] hover:text-[#000] transition-colors">
+                New Workflow
+            </button>
+        )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-3">
-          {filtered.map((wf) => (
-            <button
-              key={wf.id}
-              onClick={() => setSelectedWorkflow(wf)}
-              className="text-left border border-[#E2E8F0] rounded-sm p-4 hover:border-[#CBD5E1] hover:bg-[#F8FAFC] transition-colors group"
-              data-testid={`workflow-card-${wf.id}`}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
-                  {wf.category === 'litigation' ? (
-                    <Scale className="w-4 h-4 text-[#1A1A2E] mt-0.5" />
-                  ) : (
-                    <Calculator className="w-4 h-4 text-[#B45309] mt-0.5" />
-                  )}
-                  <div>
-                    <h3 className="text-sm font-medium text-[#0D0D0D] group-hover:text-[#1A1A2E]">{wf.name}</h3>
-                    <p className="text-[10px] text-[#64748B] mt-0.5 font-mono">
-                      {wf.fields?.length || 0} fields | {wf.category}
-                    </p>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-[#CBD5E1] group-hover:text-[#1A1A2E] transition-colors" />
+      <div className="flex-1 overflow-y-auto p-8">
+        <div className="max-w-[1000px] mx-auto">
+          
+          {loading ? (
+            <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-[#000]" /></div>
+          ) : !activeChain ? (
+            <div>
+              <div className="mb-10 text-center">
+                <h2 className="text-[32px] font-bold text-[#111827] mb-4 tracking-[-0.02em]">Select a Workflow</h2>
+                <p className="text-[15px] text-[#4B5563] max-w-[600px] mx-auto">
+                  Multi-step execution chains where the output of each AI reasoning step feeds into the next, mimicking a human associate's workflow.
+                </p>
               </div>
-            </button>
-          ))}
+
+              {!selectedTemplate ? (
+                  <div className="grid grid-cols-2 gap-6">
+                    {templates.map(t => (
+                        <div 
+                           key={t.id} 
+                           onClick={() => setSelectedTemplate(t)}
+                           className="bg-[#FFFFFF] border border-[#E5E7EB] p-6 rounded-[12px] cursor-pointer hover:border-[#000] hover:shadow-md transition-all group"
+                        >
+                            <div className="flex justify-between items-start mb-4">
+                                <div className="p-3 bg-[#F3F4F6] rounded-[8px] group-hover:bg-[#000] group-hover:text-white transition-colors">
+                                    <FileText className="w-5 h-5" />
+                                </div>
+                                <span className="text-[12px] font-bold text-[#6B7280] uppercase tracking-wider bg-[#F9FAFB] px-2 py-1 rounded">
+                                    {t.steps} Steps
+                                </span>
+                            </div>
+                            <h3 className="text-[18px] font-bold text-[#111827] mb-2">{t.name}</h3>
+                            <p className="text-[13px] text-[#4B5563] leading-relaxed">{t.description}</p>
+                        </div>
+                    ))}
+                  </div>
+              ) : (
+                  <div className="bg-[#FFFFFF] border border-[#E5E7EB] p-8 rounded-[16px] shadow-sm">
+                      <button onClick={() => setSelectedTemplate(null)} className="text-[12px] font-bold text-[#4B5563] uppercase tracking-wider hover:text-[#000] mb-6 flex items-center gap-1">
+                          ← Back to templates
+                      </button>
+                      <h3 className="text-[24px] font-bold text-[#111827] mb-2">{selectedTemplate.name}</h3>
+                      <p className="text-[14px] text-[#4B5563] mb-8">{selectedTemplate.description}</p>
+                      
+                      <label className="block text-[13px] font-bold text-[#111827] mb-2 uppercase tracking-wide">Initial Input / Context</label>
+                      <textarea
+                        value={initialInput}
+                        onChange={e => setInitialInput(e.target.value)}
+                        placeholder="Paste the initial facts, contract text, or notice here..."
+                        className="w-full h-48 p-4 text-[14.5px] border border-[#D1D5DB] rounded-[8px] mb-4 focus:outline-none focus:border-[#000] focus:ring-1 focus:ring-[#000] resize-none font-mono"
+                      />
+                      <button
+                        onClick={handleStartChain}
+                        disabled={!initialInput.trim() || chainLoading}
+                        className="w-full bg-[#000] text-white py-4 rounded-[8px] font-semibold flex items-center justify-center gap-2 hover:bg-[#1f2937] transition-all disabled:opacity-50"
+                      >
+                         {chainLoading ? (
+                             <><Loader2 className="w-5 h-5 animate-spin" /> Initializing Chain...</>
+                         ) : (
+                             <><Play className="w-5 h-5 fill-current" /> Next: Execute Step 1</>
+                         )}
+                      </button>
+                  </div>
+              )}
+            </div>
+          ) : activeChain.status === 'completed' ? (
+             <div className="bg-[#FFFFFF] border border-[#10B981] p-8 rounded-[16px] shadow-sm text-center">
+                 <CheckCircle2 className="w-16 h-16 text-[#10B981] mx-auto mb-4" />
+                 <h2 className="text-[24px] font-bold text-[#111827] mb-2">Workflow Completed</h2>
+                 <p className="text-[15px] text-[#4B5563] mb-8">All steps in the chain have been successfully executed.</p>
+                 
+                 <div className="text-left bg-[#FAFAFA] border border-[#E5E7EB] rounded-[12px] p-6 mb-8 overflow-auto max-h-[600px]">
+                     {Object.entries(activeChain.all_outputs).map(([stepId, output], idx) => (
+                         <div key={stepId} className="mb-8 last:mb-0">
+                             <h4 className="text-[12px] font-bold text-[#6B7280] uppercase tracking-wider mb-3">Step {idx + 1}: {stepId}</h4>
+                             <div className="text-[14.5px] text-[#111827] leading-relaxed whitespace-pre-wrap font-serif" dangerouslySetInnerHTML={{ __html: output }} />
+                             {idx < Object.entries(activeChain.all_outputs).length - 1 && <hr className="my-6 border-[#E5E7EB]" />}
+                         </div>
+                     ))}
+                 </div>
+                 
+                 <button onClick={resetWorkflow} className="bg-[#000] text-white px-8 py-3 rounded-[8px] font-semibold">Start New Workflow</button>
+             </div>
+          ) : (
+             <div className="flex gap-8">
+                 {/* Sidebar progress */}
+                 <div className="w-64 shrink-0">
+                     <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-[12px] p-5 sticky top-8">
+                         <h3 className="text-[14px] font-bold text-[#111827] mb-4">Chain Progress</h3>
+                         <div className="space-y-4">
+                             {Array.from({length: activeChain.total_steps}).map((_, i) => (
+                                 <div key={i} className={`flex items-center gap-3 ${i === activeChain.current_step ? 'opacity-100' : 'opacity-40'}`}>
+                                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                                         i < activeChain.current_step ? 'bg-[#10B981] text-white' :
+                                         i === activeChain.current_step ? 'bg-[#000] text-white' : 'bg-[#E5E7EB] text-[#6B7280]'
+                                     }`}>
+                                         {i < activeChain.current_step ? '✓' : i + 1}
+                                     </div>
+                                     <span className="text-[13px] font-bold">
+                                         {i === activeChain.current_step ? activeChain.step_title : `Step ${i + 1}`}
+                                     </span>
+                                 </div>
+                             ))}
+                         </div>
+                     </div>
+                 </div>
+
+                 {/* Main content */}
+                 <div className="flex-1 bg-[#FFFFFF] border border-[#E5E7EB] p-8 rounded-[16px] shadow-sm">
+                     <div className="flex justify-between items-center mb-6">
+                         <h3 className="text-[20px] font-bold text-[#111827]">Step {activeChain.current_step + 1}: {activeChain.step_title}</h3>
+                         <span className="text-[11px] font-bold text-[#1D4ED8] bg-[#DBEAFE] px-2 py-1 rounded tracking-widest uppercase">Awaiting human review</span>
+                     </div>
+                     
+                     <p className="text-[14px] text-[#4B5563] mb-4">Review the AI's output for this step. You can edit the text directly before it is passed as context to the next step.</p>
+                     
+                     <textarea
+                        value={editedOutput}
+                        onChange={e => setEditedOutput(e.target.value)}
+                        className="w-full h-[400px] p-5 text-[14.5px] border border-[#D1D5DB] rounded-[8px] mb-6 focus:outline-none focus:border-[#000] focus:ring-1 focus:ring-[#000] leading-relaxed resize-y font-serif bg-[#FAFAFA]"
+                     />
+                     
+                     <button
+                        onClick={handleNextStep}
+                        disabled={chainLoading || !editedOutput.trim()}
+                        className="w-full bg-[#000] text-white py-4 rounded-[8px] font-semibold flex items-center justify-center gap-2 hover:bg-[#1f2937] transition-all disabled:opacity-50"
+                     >
+                        {chainLoading ? (
+                             <><Loader2 className="w-5 h-5 animate-spin" /> Processing Next Step...</>
+                        ) : activeChain.next_step ? (
+                             <>Approve & Run Next: {activeChain.next_step} <ChevronRight className="w-5 h-5" /></>
+                        ) : (
+                             <><CheckCircle2 className="w-5 h-5" /> Finalize Workflow</>
+                        )}
+                     </button>
+                 </div>
+             </div>
+          )}
+
         </div>
       </div>
     </div>
