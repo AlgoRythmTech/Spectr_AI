@@ -8,10 +8,10 @@ import {
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
 const RISK_COLORS = {
-  HIGH: { bg: 'bg-[#FEF2F2]', text: 'text-[#991B1B]', border: 'border-[#FECACA]', dot: 'bg-[#DC2626]' },
-  MEDIUM: { bg: 'bg-[#FFFBEB]', text: 'text-[#92400E]', border: 'border-[#FDE68A]', dot: 'bg-[#F59E0B]' },
-  LOW: { bg: 'bg-[#F0FDF4]', text: 'text-[#166534]', border: 'border-[#BBF7D0]', dot: 'bg-[#22C55E]' },
-  OVERDUE: { bg: 'bg-[#FEF2F2]', text: 'text-[#991B1B]', border: 'border-[#FECACA]', dot: 'bg-[#DC2626]' },
+  HIGH: { bg: 'bg-[#FAFAFA]', text: 'text-[#333]', border: 'border-[#E5E5E5]', dot: 'bg-[#000]' },
+  MEDIUM: { bg: 'bg-[#F5F5F5]', text: 'text-[#333]', border: 'border-[#E5E5E5]', dot: 'bg-[#999]' },
+  LOW: { bg: 'bg-[#FAFAFA]', text: 'text-[#000]', border: 'border-[#E5E5E5]', dot: 'bg-[#000]' },
+  OVERDUE: { bg: 'bg-[#FAFAFA]', text: 'text-[#333]', border: 'border-[#E5E5E5]', dot: 'bg-[#000]' },
 };
 
 function getDeadlineStatus(deadlineStr) {
@@ -84,23 +84,23 @@ export default function PortfolioPage() {
   const activeMatters = clients.reduce((acc, c) => acc + (c.active_matters || 0), 0);
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden" data-testid="portfolio-page">
+    <div className="flex-1 flex flex-col overflow-hidden page-bg" data-testid="portfolio-page">
       {/* Header */}
-      <div className="h-14 px-6 flex items-center justify-between border-b border-[#E2E8F0] shrink-0">
+      <div className="h-14 px-6 flex items-center justify-between border-b border-[#E2E8F0] shrink-0 glass-header">
         <div className="flex items-center gap-3">
-          <Briefcase className="w-4 h-4 text-[#1A1A2E]" />
-          <h1 className="text-sm font-bold tracking-wider uppercase text-[#1A1A2E]">Portfolio Command Center</h1>
+          <Briefcase className="w-4 h-4 text-[#0A0A0A]" />
+          <h1 className="text-sm font-bold tracking-wider uppercase text-[#0A0A0A]">Portfolio Command Center</h1>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => fetchClients()}
-            className="text-xs text-[#64748B] hover:text-[#0D0D0D] p-2 rounded-sm hover:bg-[#F1F5F9] transition-colors"
+            className="text-xs text-[#64748B] hover:text-[#0D0D0D] p-2 rounded-[100px] hover:bg-[#F1F5F9] transition-colors"
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => setShowAddClient(true)}
-            className="flex items-center gap-1.5 text-xs font-medium bg-[#1A1A2E] text-white px-3 py-1.5 rounded-sm hover:bg-[#0D0D0D] transition-colors"
+            className="flex items-center gap-1.5 text-xs font-medium bg-[#0A0A0A] text-white px-3 py-1.5 rounded-[100px] hover:bg-[#0D0D0D] transition-colors"
             data-testid="add-client-btn"
           >
             <Plus className="w-3.5 h-3.5" /> Add Client
@@ -111,30 +111,30 @@ export default function PortfolioPage() {
       {/* Stats Bar */}
       <div className="px-6 py-4 border-b border-[#E2E8F0] flex items-center gap-6 shrink-0">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-[#1A1A2E]" />
+          <div className="w-2 h-2 rounded-full bg-[#0A0A0A]" />
           <span className="text-xs text-[#64748B]">Total Clients</span>
           <span className="text-sm font-bold text-[#0D0D0D]">{clients.length}</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-[#DC2626]" />
+          <div className="w-2 h-2 rounded-full bg-[#000]" />
           <span className="text-xs text-[#64748B]">High Risk</span>
-          <span className="text-sm font-bold text-[#991B1B]">{highRisk}</span>
+          <span className="text-sm font-bold text-[#333]">{highRisk}</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-[#F59E0B]" />
+          <div className="w-2 h-2 rounded-full bg-[#999]" />
           <span className="text-xs text-[#64748B]">Overdue</span>
-          <span className="text-sm font-bold text-[#92400E]">{overdue}</span>
+          <span className="text-sm font-bold text-[#333]">{overdue}</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-[#22C55E]" />
+          <div className="w-2 h-2 rounded-full bg-[#000]" />
           <span className="text-xs text-[#64748B]">Active Matters</span>
-          <span className="text-sm font-bold text-[#166534]">{activeMatters}</span>
+          <span className="text-sm font-bold text-[#000]">{activeMatters}</span>
         </div>
       </div>
 
       {/* Search & Filter */}
       <div className="px-6 py-3 border-b border-[#E2E8F0] flex items-center gap-3 shrink-0">
-        <div className="flex items-center gap-2 flex-1 bg-[#F8FAFC] border border-[#E2E8F0] rounded-sm px-3 py-2">
+        <div className="flex items-center gap-2 flex-1 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[12px] px-3 py-2">
           <Search className="w-3.5 h-3.5 text-[#94A3B8]" />
           <input
             type="text"
@@ -150,8 +150,8 @@ export default function PortfolioPage() {
             <button
               key={level}
               onClick={() => setFilterRisk(level)}
-              className={`text-[10px] font-mono px-2 py-1 rounded-sm border transition-colors ${
-                filterRisk === level ? 'bg-[#1A1A2E] text-white border-[#1A1A2E]' : 'bg-white text-[#64748B] border-[#E2E8F0] hover:bg-[#F8FAFC]'
+              className={`text-[10px] font-mono px-2 py-1 rounded-[100px] border transition-colors ${
+                filterRisk === level ? 'bg-[#0A0A0A] text-white border-[#0A0A0A]' : 'bg-white text-[#64748B] border-[#E2E8F0] hover:bg-[#F8FAFC]'
               }`}
             >
               {level}
@@ -161,7 +161,7 @@ export default function PortfolioPage() {
       </div>
 
       {/* Client List */}
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
+      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2 stagger-children">
         {loading ? (
           <div className="text-center py-8 text-sm text-[#94A3B8]">Loading clients...</div>
         ) : filteredClients.length === 0 ? (
@@ -176,7 +176,7 @@ export default function PortfolioPage() {
             return (
               <div
                 key={client.client_id || i}
-                className={`border ${riskStyle.border} rounded-sm p-4 hover:shadow-sm transition-shadow cursor-pointer ${riskStyle.bg}`}
+                className={`border ${riskStyle.border} rounded-[14px] p-4 hover:shadow-sm transition-shadow cursor-pointer ${riskStyle.bg} glass-card`}
                 data-testid={`client-card-${i}`}
               >
                 <div className="flex items-center justify-between">
@@ -207,9 +207,9 @@ export default function PortfolioPage() {
                 </div>
                 {/* Conflict Warning */}
                 {client.conflicts && client.conflicts.length > 0 && (
-                  <div className="mt-2 px-3 py-1.5 bg-[#FEF2F2] border border-[#FECACA] rounded-sm flex items-center gap-2">
-                    <AlertTriangle className="w-3.5 h-3.5 text-[#DC2626]" />
-                    <span className="text-[11px] text-[#991B1B] font-medium">
+                  <div className="mt-2 px-3 py-1.5 bg-[#FAFAFA] border border-[#E5E5E5] rounded-[12px] flex items-center gap-2">
+                    <AlertTriangle className="w-3.5 h-3.5 text-[#000]" />
+                    <span className="text-[11px] text-[#333] font-medium">
                       CONFLICT: {client.conflicts.join('; ')}
                     </span>
                   </div>
@@ -222,31 +222,31 @@ export default function PortfolioPage() {
 
       {/* Add Client Modal */}
       {showAddClient && (
-        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50" onClick={() => setShowAddClient(false)}>
-          <div className="bg-white border border-[#E2E8F0] rounded-sm shadow-lg w-[480px] p-6" onClick={e => e.stopPropagation()}>
-            <h2 className="text-sm font-bold tracking-wider uppercase text-[#1A1A2E] mb-4">Add Client</h2>
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowAddClient(false)}>
+          <div className="border border-[#E2E8F0] rounded-[16px] shadow-lg w-[480px] p-6" style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }} onClick={e => e.stopPropagation()}>
+            <h2 className="text-sm font-bold tracking-wider uppercase text-[#0A0A0A] mb-4">Add Client</h2>
             <div className="space-y-3">
               <input
                 type="text" placeholder="Client / Company Name *"
                 value={newClient.name} onChange={e => setNewClient({...newClient, name: e.target.value})}
-                className="w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-sm outline-none focus:border-[#1A1A2E]"
+                className="w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-[12px] outline-none focus:border-[#0A0A0A]"
                 data-testid="add-client-name"
               />
               <div className="flex gap-3">
                 <input
                   type="text" placeholder="PAN"
                   value={newClient.pan} onChange={e => setNewClient({...newClient, pan: e.target.value.toUpperCase()})}
-                  className="flex-1 px-3 py-2 text-sm border border-[#E2E8F0] rounded-sm outline-none focus:border-[#1A1A2E] font-mono"
+                  className="flex-1 px-3 py-2 text-sm border border-[#E2E8F0] rounded-[12px] outline-none focus:border-[#0A0A0A] font-mono"
                 />
                 <input
                   type="text" placeholder="GSTIN (optional)"
                   value={newClient.gstin} onChange={e => setNewClient({...newClient, gstin: e.target.value.toUpperCase()})}
-                  className="flex-1 px-3 py-2 text-sm border border-[#E2E8F0] rounded-sm outline-none focus:border-[#1A1A2E] font-mono"
+                  className="flex-1 px-3 py-2 text-sm border border-[#E2E8F0] rounded-[12px] outline-none focus:border-[#0A0A0A] font-mono"
                 />
               </div>
               <select
                 value={newClient.entity_type} onChange={e => setNewClient({...newClient, entity_type: e.target.value})}
-                className="w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-sm outline-none focus:border-[#1A1A2E]"
+                className="w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-[12px] outline-none focus:border-[#0A0A0A]"
               >
                 <option>Company</option>
                 <option>LLP</option>
@@ -259,12 +259,12 @@ export default function PortfolioPage() {
             <div className="flex justify-end gap-2 mt-4">
               <button
                 onClick={() => setShowAddClient(false)}
-                className="text-xs text-[#64748B] px-3 py-1.5 border border-[#E2E8F0] rounded-sm hover:bg-[#F8FAFC]"
+                className="text-xs text-[#64748B] px-3 py-1.5 border border-[#E2E8F0] rounded-[12px] hover:bg-[#F8FAFC]"
               >Cancel</button>
               <button
                 onClick={addClient}
                 disabled={!newClient.name}
-                className="text-xs font-medium bg-[#1A1A2E] text-white px-4 py-1.5 rounded-sm hover:bg-[#0D0D0D] disabled:opacity-50"
+                className="text-xs font-medium bg-[#0A0A0A] text-white px-4 py-1.5 rounded-[12px] hover:bg-[#0D0D0D] disabled:opacity-50"
                 data-testid="save-client-btn"
               >Save Client</button>
             </div>

@@ -31,16 +31,16 @@ export default function HistoryPage() {
 
   const getTypeIcon = (types) => {
     if (types?.includes('financial')) return <Calculator className="w-3.5 h-3.5 text-[#B45309]" />;
-    if (types?.includes('legal')) return <Scale className="w-3.5 h-3.5 text-[#1A1A2E]" />;
+    if (types?.includes('legal')) return <Scale className="w-3.5 h-3.5 text-[#0A0A0A]" />;
     return <FileText className="w-3.5 h-3.5 text-[#64748B]" />;
   };
 
   return (
-    <div className="flex flex-col h-full" data-testid="history-page">
-      <div className="h-14 border-b border-[#E2E8F0] px-6 flex items-center justify-between shrink-0">
+    <div className="flex flex-col h-full page-bg" data-testid="history-page">
+      <div className="h-14 border-b border-[#E2E8F0] px-6 flex items-center justify-between shrink-0 glass-header">
         <div className="flex items-center gap-2">
           <History className="w-4 h-4 text-[#64748B]" />
-          <h1 className="text-base font-semibold text-[#1A1A2E]">History & Audit</h1>
+          <h1 className="text-base font-semibold text-[#0A0A0A]">History & Audit</h1>
           <span className="text-xs text-[#64748B] font-mono ml-2">{history.length} queries</span>
         </div>
         <div className="flex items-center gap-2">
@@ -48,8 +48,8 @@ export default function HistoryPage() {
             <button
               key={t}
               onClick={() => setFilterType(t)}
-              className={`px-2.5 py-1 text-[10px] font-medium rounded-sm transition-colors uppercase tracking-wider ${
-                filterType === t ? 'bg-[#1A1A2E] text-white' : 'text-[#64748B] hover:bg-[#F8FAFC]'
+              className={`px-2.5 py-1 text-[10px] font-medium rounded-[12px] transition-colors uppercase tracking-wider glass-pill ${
+                filterType === t ? 'bg-[#0A0A0A] text-white glass-pill-active' : 'text-[#64748B] hover:bg-[#F8FAFC]'
               }`}
               data-testid={`filter-${t}`}
             >
@@ -70,7 +70,7 @@ export default function HistoryPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search history..."
-                className="w-full pl-9 pr-3 py-2 text-sm border border-[#E2E8F0] rounded-sm focus:outline-none focus:ring-1 focus:ring-[#0D0D0D]"
+                className="w-full pl-9 pr-3 py-2 text-sm glass-input"
                 data-testid="history-search"
               />
             </div>
@@ -81,10 +81,10 @@ export default function HistoryPage() {
               <div
                 key={item.history_id}
                 onClick={() => setSelectedItem(item)}
-                className={`p-3 rounded-sm cursor-pointer transition-colors border ${
+                className={`p-3 rounded-[12px] cursor-pointer transition-colors border ${
                   selectedItem?.history_id === item.history_id
-                    ? 'border-[#1A1A2E] bg-[#F8FAFC]'
-                    : 'border-transparent hover:bg-[#F8FAFC]'
+                    ? 'border-[#0A0A0A] bg-[#F8FAFC]'
+                    : 'border-transparent hover:bg-white/60'
                 }`}
                 data-testid={`history-item-${item.history_id}`}
               >

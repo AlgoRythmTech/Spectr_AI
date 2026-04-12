@@ -16,7 +16,7 @@ export default function LoginPage() {
   const handleLogin = async () => {
     try {
       await loginWithGoogle();
-      navigate('/app/assistant');
+      // Navigation handled by useEffect watching user state
     } catch (err) {
       console.error('Login error:', err);
     }
@@ -24,14 +24,14 @@ export default function LoginPage() {
 
   const handleDevLogin = () => {
     devLogin();
-    navigate('/app/assistant');
+    // Navigation handled by useEffect watching user state
   };
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] flex flex-col md:flex-row font-display relative overflow-hidden">
       {/* Background abstract elements */}
       <div className="absolute inset-0 bg-mesh opacity-20 pointer-events-none" />
-      <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[#3B82F6] opacity-[0.05] blur-[150px] rounded-full pointer-events-none animate-pulse-slow" />
+      <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[#0A0A0A] opacity-[0.05] blur-[150px] rounded-full pointer-events-none animate-pulse-slow" />
       
       {/* Left side - Branding & Hype */}
       <div className="flex-1 p-12 flex flex-col justify-between relative z-10 hidden md:flex">
@@ -59,7 +59,7 @@ export default function LoginPage() {
 
       {/* Right side - Auth panel */}
       <div className="flex-1 bg-white flex items-center justify-center p-8 relative z-20 shadow-[-20px_0_50px_rgba(0,0,0,0.5)]">
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-sm page-enter">
           <div className="md:hidden flex items-center gap-2 mb-12">
             <div className="w-8 h-8 bg-[#0A0A0A] rounded-lg flex items-center justify-center">
               <Scale className="w-4 h-4 text-white" />
@@ -72,7 +72,7 @@ export default function LoginPage() {
           
           <button
             onClick={handleLogin}
-            className="w-full group relative flex items-center justify-center gap-3 bg-white border-2 border-[#E2E8F0] p-4 rounded-xl text-[#0A0A0A] font-bold hover:bg-[#F8FAFC] hover:border-[#CBD5E1] transition-all duration-300"
+            className="w-full group relative flex items-center justify-center gap-3 bg-white border-2 border-[#E2E8F0] p-4 rounded-[14px] text-[#0A0A0A] font-bold hover:bg-[#F8FAFC] hover:border-[#CBD5E1] transition-all duration-300"
           >
             <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5 absolute left-5" alt="Google" />
             <span>Continue with Google</span>
@@ -90,10 +90,10 @@ export default function LoginPage() {
 
           <button
             onClick={handleDevLogin}
-            className="w-full group relative flex items-center justify-center gap-3 bg-[#0A0A0A] text-white p-4 rounded-xl font-bold hover:bg-[#1A1A1A] transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+            className="w-full group relative flex items-center justify-center gap-3 bg-[#0A0A0A] text-white p-4 rounded-[100px] font-bold hover:bg-[#1A1A1A] transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-0.5"
           >
             <span>Dev Bypass</span>
-            <ArrowRight className="w-4 h-4 absolute right-5 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all text-[#3B82F6]" />
+            <ArrowRight className="w-4 h-4 absolute right-5 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all text-[#0A0A0A]" />
           </button>
           
           <p className="text-center text-xs text-[#94A3B8] mt-8 leading-relaxed">

@@ -20,10 +20,20 @@ function ProtectedRoute({ children }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-2 border-[#1A1A2E] border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-[#64748B] font-medium tracking-wide">Loading Associate...</p>
+      <div style={{
+        minHeight: '100vh', background: '#fff',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: "'Inter', sans-serif",
+      }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+          <div style={{
+            width: 24, height: 24,
+            border: '2px solid #0A0A0A', borderTopColor: 'transparent',
+            borderRadius: '50%', animation: 'spin 0.6s linear infinite',
+          }} />
+          <p style={{ fontSize: 13, color: '#999', fontWeight: 500, letterSpacing: '-0.01em' }}>
+            Loading Associate...
+          </p>
         </div>
       </div>
     );

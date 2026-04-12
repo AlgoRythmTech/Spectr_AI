@@ -91,16 +91,21 @@ export default function CourtTrackerPage() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#FAFAFA] font-sans">
-      <div className="h-16 border-b border-[#E5E7EB] px-8 flex items-center shrink-0 bg-[#FFFFFF]">
-        <Briefcase className="w-5 h-5 text-[#000] mr-3" />
-        <h1 className="text-[15px] font-semibold text-[#000] tracking-tight">Court Hearing Tracker</h1>
+    <div className="flex flex-col h-full bg-[#FFFFFF] font-sans page-bg">
+      <div className="h-16 border-b border-[#E8ECF1] px-8 flex items-center gap-3 shrink-0 bg-[#FFFFFF] glass-header">
+        <div className="w-9 h-9 bg-[#F0F0F0] rounded-lg flex items-center justify-center">
+          <Briefcase className="w-[18px] h-[18px] text-[#0A0A0A]" />
+        </div>
+        <div>
+          <h1 className="text-[17px] font-bold text-[#0A0A0A] tracking-tight leading-tight">Court Tracker</h1>
+          <p className="text-[11px] text-[#64748B]">Track cases across Supreme Court, High Courts, NCLT &amp; tribunals</p>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-8">
         <div className="max-w-[1000px] mx-auto">
           
-          <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-[16px] p-6 shadow-sm mb-8">
+          <div className="glass-card-static p-6 mb-8">
             <h2 className="text-[16px] font-bold text-[#111827] mb-4">Track New Matter</h2>
             <form onSubmit={handleAddCase} className="flex gap-4 items-end">
               <div className="flex-1">
@@ -110,7 +115,7 @@ export default function CourtTrackerPage() {
                   value={newCase.case_number}
                   onChange={(e) => setNewCase({...newCase, case_number: e.target.value})}
                   placeholder="e.g. SLP(C) No. 1234/2026"
-                  className="w-full p-3 text-[14px] border border-[#D1D5DB] rounded-[6px] focus:outline-none focus:border-[#000]"
+                  className="w-full p-3 text-[14px] glass-input"
                 />
               </div>
               <div className="flex-1">
@@ -120,7 +125,7 @@ export default function CourtTrackerPage() {
                   value={newCase.party_name}
                   onChange={(e) => setNewCase({...newCase, party_name: e.target.value})}
                   placeholder="e.g. Union of India vs X"
-                  className="w-full p-3 text-[14px] border border-[#D1D5DB] rounded-[6px] focus:outline-none focus:border-[#000]"
+                  className="w-full p-3 text-[14px] glass-input"
                 />
               </div>
               <div className="w-48">
@@ -128,7 +133,7 @@ export default function CourtTrackerPage() {
                 <select
                   value={newCase.court}
                   onChange={(e) => setNewCase({...newCase, court: e.target.value})}
-                  className="w-full p-3 text-[14px] border border-[#D1D5DB] rounded-[6px] focus:outline-none focus:border-[#000] bg-white"
+                  className="w-full p-3 text-[14px] glass-input bg-white"
                 >
                   <option value="supreme_court">Supreme Court</option>
                   <option value="high_court">High Court</option>
@@ -141,7 +146,7 @@ export default function CourtTrackerPage() {
               <button
                 type="submit"
                 disabled={adding || (!newCase.case_number && !newCase.party_name)}
-                className="bg-[#000] text-white px-6 py-3 rounded-[6px] font-semibold flex items-center justify-center gap-2 hover:bg-[#1f2937] transition-all disabled:opacity-50 h-[46px] w-[140px]"
+                className="bg-[#000] text-white px-6 py-3 btn-black-pill font-semibold flex items-center justify-center gap-2 hover:bg-[#1f2937] transition-all disabled:opacity-50 h-[46px] w-[140px]"
               >
                 {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                 Track
@@ -160,9 +165,9 @@ export default function CourtTrackerPage() {
               <p className="text-[#6B7280] text-[14px]">No cases tracked yet. Add one above to fetch details from eCourts/NJDG.</p>
             </div>
           ) : (
-            <div className="grid gap-6 grid-cols-1">
+            <div className="grid gap-6 grid-cols-1 stagger-children">
               {cases.map((c) => (
-                <div key={c.track_id} className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-[12px] p-6 shadow-sm flex flex-col gap-4">
+                <div key={c.track_id} className="glass-card p-6 flex flex-col gap-4">
                   
                   <div className="flex justify-between items-start">
                     <div>
@@ -177,7 +182,7 @@ export default function CourtTrackerPage() {
                        <button onClick={() => handleRefresh(c.track_id)} className="p-2 text-[#4B5563] hover:text-[#000] bg-[#F9FAFB] hover:bg-[#F3F4F6] border border-[#E5E7EB] rounded transition-all focus:outline-none" title="Refresh eCourts Data">
                          <RefreshCw className={`w-4 h-4 ${refreshing === c.track_id ? 'animate-spin' : ''}`} />
                        </button>
-                       <button onClick={() => handleRemove(c.track_id)} className="p-2 text-[#EF4444] hover:text-[#DC2626] bg-[#FEF2F2] hover:bg-[#FEE2E2] border border-[#FECACA] rounded transition-all focus:outline-none" title="Stop Tracking">
+                       <button onClick={() => handleRemove(c.track_id)} className="p-2 text-[#666] hover:text-[#000] bg-[#FAFAFA] hover:bg-[#F5F5F5] border border-[#E5E5E5] rounded transition-all focus:outline-none" title="Stop Tracking">
                          <Trash2 className="w-4 h-4" />
                        </button>
                     </div>
@@ -190,7 +195,7 @@ export default function CourtTrackerPage() {
                          {c.search_results.map((res, i) => (
                            <li key={i} className="flex gap-3">
                              <div className="mt-1 flex-shrink-0">
-                               {res.source === 'IndianKanoon' ? <Scale className="w-4 h-4 text-[#92400E]" /> : <Calendar className="w-4 h-4 text-[#1D4ED8]" />}
+                               {res.source === 'IndianKanoon' ? <Scale className="w-4 h-4 text-[#333]" /> : <Calendar className="w-4 h-4 text-[#000]" />}
                              </div>
                              <div>
                                <a href={res.url} target="_blank" rel="noreferrer" className="text-[14px] font-semibold text-[#111827] hover:underline flex items-center gap-1">

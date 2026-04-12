@@ -102,7 +102,7 @@ export default function CommandPalette({ isOpen, onClose }) {
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
       {/* Palette */}
-      <div className="relative w-[640px] bg-white rounded-xl shadow-2xl border border-[#E2E8F0] overflow-hidden animate-fade-in-up">
+      <div className="relative w-[640px] rounded-[16px] shadow-2xl border border-[#E2E8F0] overflow-hidden animate-fade-in-up" style={{ background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
         {/* Search Input */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-[#E2E8F0]">
           <Search className="w-5 h-5 text-[#94A3B8] shrink-0" />
@@ -134,10 +134,10 @@ export default function CommandPalette({ isOpen, onClose }) {
               <button
                 key={item.id}
                 onClick={() => handleSelect(item)}
-                className={`w-full flex items-center gap-3 px-5 py-2.5 text-left transition-colors ${
+                className={`w-full flex items-center gap-3 px-5 py-2.5 text-left transition-colors rounded-[10px] mx-2 ${
                   idx === selectedIndex
-                    ? 'bg-[#1A1A2E] text-white'
-                    : 'text-[#0D0D0D] hover:bg-[#F8FAFC]'
+                    ? 'bg-[#0A0A0A] text-white'
+                    : 'text-[#0D0D0D] hover:bg-white/60'
                 }`}
                 data-testid={`cmd-${item.id}`}
               >

@@ -1,12 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { FileDown, Edit3, Eye, EyeOff, Scale, Copy, Check, BookOpen, Shield, AlertTriangle } from 'lucide-react';
+import { FileDown, Edit3, Eye, EyeOff, Scale, Copy, Check, AlertTriangle, FileText, Table2, Gavel, FileWarning, ChevronDown } from 'lucide-react';
 import CitationPanel from './CitationPanel';
+import RiskExposureCard, { parseRiskAnalysis, stripRiskAnalysis } from './RiskExposureCard';
 
 /**
- * Premium Markdown-aware renderer for Associate AI responses.
- * Renders: headers, bold, italic, tables, blockquotes, lists,
- * numbered items, code blocks, horizontal rules, source tags,
- * and citation highlights.
+ * Markdown renderer for Associate AI responses.
  */
 function renderMarkdownContent(content, citations, onCitationClick) {
   if (!content) return null;
@@ -18,29 +16,17 @@ function renderMarkdownContent(content, citations, onCitationClick) {
     const line = lines[i];
     const trimmed = line.trim();
 
-    // Empty line
-    if (!trimmed) {
-      elements.push(<div key={i} style={{ height: 10 }} />);
-      i++;
-      continue;
-    }
+    if (!trimmed) { elements.push(<div key={i} style={{ height: 8 }} />); i++; continue; }
 
-    // Horizontal rule
     if (/^---+$/.test(trimmed) || /^\*\*\*+$/.test(trimmed)) {
-      elements.push(
-        <hr key={i} style={{ border: 'none', borderTop: '1px solid #E5E7EB', margin: '20px 0' }} />
-      );
-      i++;
-      continue;
+      elements.push(<hr key={i} style={{ border: 'none', borderTop: '1px solid #EBEBEB', margin: '16px 0' }} />);
+      i++; continue;
     }
 
-    // Table detection (starts with |)
+    // Table
     if (trimmed.startsWith('|')) {
       const tableLines = [];
-      while (i < lines.length && lines[i].trim().startsWith('|')) {
-        tableLines.push(lines[i].trim());
-        i++;
-      }
+      while (i < lines.length && lines[i].trim().startsWith('|')) { tableLines.push(lines[i].trim()); i++; }
       elements.push(renderTable(tableLines, elements.length));
       continue;
     }
@@ -49,17 +35,13 @@ function renderMarkdownContent(content, citations, onCitationClick) {
     if (trimmed.startsWith('```')) {
       const codeLines = [];
       i++;
-      while (i < lines.length && !lines[i].trim().startsWith('```')) {
-        codeLines.push(lines[i]);
-        i++;
-      }
-      i++; // skip closing ```
+      while (i < lines.length && !lines[i].trim().startsWith('```')) { codeLines.push(lines[i]); i++; }
+      i++;
       elements.push(
         <pre key={elements.length} style={{
-          background: '#1A1A2E', color: '#E2E8F0', padding: '16px 20px',
-          borderRadius: 10, fontSize: 13, lineHeight: 1.7, overflowX: 'auto',
-          fontFamily: "'IBM Plex Mono', 'Fira Code', monospace",
-          margin: '12px 0', border: '1px solid #2D2D44',
+          background: '#1A1A1A', color: '#E2E8F0', padding: '14px 18px',
+          borderRadius: 12, fontSize: 13, lineHeight: 1.7, overflowX: 'auto',
+          fontFamily: "'Inter', sans-serif", margin: '10px 0',
         }}>
           {codeLines.join('\n')}
         </pre>
@@ -67,155 +49,113 @@ function renderMarkdownContent(content, citations, onCitationClick) {
       continue;
     }
 
-    // Headers — ####, ###, ##, and #
+    // Headers
     if (trimmed.startsWith('#### ') || trimmed.startsWith('##### ')) {
-      const text = trimmed.replace(/^#+\s/, '');
       elements.push(
-        <h5 key={i} style={{
-          fontSize: 14, fontWeight: 700, color: '#374151', marginTop: 20, marginBottom: 8,
-          letterSpacing: '-0.01em', textTransform: 'uppercase'
-        }}>
-          {renderInline(text, citations, onCitationClick)}
+        <h5 key={i} style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginTop: 18, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+          {renderInline(trimmed.replace(/^#+\s/, ''), citations, onCitationClick)}
         </h5>
       );
-      i++;
-      continue;
+      i++; continue;
     }
     if (trimmed.startsWith('### ')) {
       elements.push(
-        <h4 key={i} style={{
-          fontSize: 15, fontWeight: 800, color: '#000000', marginTop: 28, marginBottom: 8,
-          letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 8,
-          borderBottom: '1px solid #F3F4F6', paddingBottom: 8,
-        }}>
-          <span style={{ width: 3, height: 18, background: '#000', borderRadius: 2, flexShrink: 0 }} />
+        <h4 key={i} style={{ fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif", fontSize: 15, fontWeight: 700, color: '#0A0A0A', marginTop: 24, marginBottom: 8, paddingBottom: 6, borderBottom: '1px solid #F0F0F0', letterSpacing: '-0.01em' }}>
           {renderInline(trimmed.slice(4), citations, onCitationClick)}
         </h4>
       );
-      i++;
-      continue;
+      i++; continue;
     }
     if (trimmed.startsWith('## ')) {
       elements.push(
-        <h3 key={i} style={{
-          fontSize: 17, fontWeight: 800, color: '#000000', marginTop: 32, marginBottom: 10,
-          letterSpacing: '-0.03em', borderBottom: '2px solid #000', paddingBottom: 10,
-        }}>
+        <h3 key={i} style={{ fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif", fontSize: 17, fontWeight: 700, color: '#0A0A0A', marginTop: 28, marginBottom: 8, letterSpacing: '-0.02em' }}>
           {renderInline(trimmed.slice(3), citations, onCitationClick)}
         </h3>
       );
-      i++;
-      continue;
+      i++; continue;
     }
     if (trimmed.startsWith('# ')) {
       elements.push(
-        <h2 key={i} style={{
-          fontSize: 20, fontWeight: 800, color: '#000000', marginTop: 36, marginBottom: 12,
-          letterSpacing: '-0.03em',
-        }}>
+        <h2 key={i} style={{ fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif", fontSize: 20, fontWeight: 700, color: '#0A0A0A', marginTop: 32, marginBottom: 10, letterSpacing: '-0.03em' }}>
           {renderInline(trimmed.slice(2), citations, onCitationClick)}
         </h2>
       );
-      i++;
-      continue;
+      i++; continue;
     }
 
-    // Blockquote (>)
+    // Blockquote
     if (trimmed.startsWith('> ')) {
       const quoteLines = [];
-      while (i < lines.length && lines[i].trim().startsWith('> ')) {
-        quoteLines.push(lines[i].trim().slice(2));
-        i++;
-      }
+      while (i < lines.length && lines[i].trim().startsWith('> ')) { quoteLines.push(lines[i].trim().slice(2)); i++; }
       elements.push(
         <blockquote key={elements.length} style={{
-          borderLeft: '3px solid #000', paddingLeft: 16, margin: '12px 0',
-          color: '#374151', fontStyle: 'italic', fontSize: 14, lineHeight: 1.8,
-          background: '#FAFAFA', padding: '12px 16px', borderRadius: '0 8px 8px 0',
+          borderLeft: '2px solid #D1D5DB', paddingLeft: 14, margin: '10px 0',
+          color: '#4B5563', fontStyle: 'italic', fontSize: 14, lineHeight: 1.7,
         }}>
-          {quoteLines.map((ql, qi) => (
-            <p key={qi} style={{ margin: '4px 0' }}>{renderInline(ql, citations, onCitationClick)}</p>
-          ))}
+          {quoteLines.map((ql, qi) => <p key={qi} style={{ margin: '3px 0' }}>{renderInline(ql, citations, onCitationClick)}</p>)}
         </blockquote>
       );
       continue;
     }
 
-    // Warning/Risk callout
-    if (trimmed.startsWith('⚠️') || trimmed.startsWith('**⚠️') || trimmed.includes('Risk Area') || trimmed.includes('WARNING') || trimmed.includes('CAUTION')) {
+    // Warning callout
+    if (trimmed.startsWith('⚠️') || trimmed.includes('WARNING') || trimmed.includes('CAUTION')) {
       elements.push(
         <div key={i} style={{
-          background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8,
-          padding: '10px 14px', margin: '10px 0', fontSize: 14, lineHeight: 1.7,
-          display: 'flex', alignItems: 'flex-start', gap: 10,
+          background: '#F5F5F5', border: '1px solid #E5E5E5', borderRadius: 8,
+          padding: '10px 14px', margin: '8px 0', fontSize: 13, lineHeight: 1.6,
+          display: 'flex', alignItems: 'flex-start', gap: 8,
         }}>
-          <AlertTriangle style={{ width: 16, height: 16, color: '#D97706', flexShrink: 0, marginTop: 3 }} />
+          <AlertTriangle style={{ width: 14, height: 14, color: '#000', flexShrink: 0, marginTop: 2 }} />
           <span>{renderInline(trimmed, citations, onCitationClick)}</span>
         </div>
       );
-      i++;
-      continue;
+      i++; continue;
     }
 
     // Bullet points
     if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
       elements.push(
-        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, margin: '4px 0', paddingLeft: 4 }}>
-          <span style={{ color: '#000', fontSize: 6, marginTop: 10, flexShrink: 0 }}>●</span>
-          <p style={{ fontSize: 15, lineHeight: 1.85, color: '#1A1A1A', margin: 0 }}>
+        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, margin: '3px 0', paddingLeft: 2 }}>
+          <span style={{ color: '#999', fontSize: 5, marginTop: 9, flexShrink: 0 }}>●</span>
+          <p style={{ fontSize: 14.5, lineHeight: 1.75, color: '#1A1A1A', margin: 0 }}>
             {renderInline(trimmed.replace(/^[-*]\s*/, ''), citations, onCitationClick)}
           </p>
         </div>
       );
-      i++;
-      continue;
+      i++; continue;
     }
 
-    // Sub-bullets (indented)
+    // Sub-bullets
     if (line.startsWith('  - ') || line.startsWith('  * ') || line.startsWith('    - ')) {
       elements.push(
-        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, margin: '2px 0', paddingLeft: 28 }}>
-          <span style={{ color: '#9CA3AF', fontSize: 5, marginTop: 10, flexShrink: 0 }}>○</span>
-          <p style={{ fontSize: 14, lineHeight: 1.8, color: '#374151', margin: 0 }}>
+        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, margin: '2px 0', paddingLeft: 24 }}>
+          <span style={{ color: '#CCC', fontSize: 4, marginTop: 9, flexShrink: 0 }}>○</span>
+          <p style={{ fontSize: 13, lineHeight: 1.7, color: '#4B5563', margin: 0 }}>
             {renderInline(trimmed.replace(/^[-*]\s*/, ''), citations, onCitationClick)}
           </p>
         </div>
       );
-      i++;
-      continue;
+      i++; continue;
     }
 
     // Numbered items
     if (/^\d+\.\s/.test(trimmed)) {
       const num = trimmed.match(/^(\d+)\./)[1];
       elements.push(
-        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, margin: '6px 0', paddingLeft: 4 }}>
-          <span style={{
-            fontSize: 13, fontWeight: 800, color: '#000000',
-            fontFamily: "'IBM Plex Mono', monospace", marginTop: 3, flexShrink: 0,
-            minWidth: 22, textAlign: 'right',
-          }}>{num}.</span>
-          <p style={{ fontSize: 15, lineHeight: 1.85, color: '#1A1A1A', margin: 0 }}>
+        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, margin: '4px 0' }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#0A0A0A', fontFamily: 'monospace', marginTop: 2, flexShrink: 0, minWidth: 20, textAlign: 'right' }}>{num}.</span>
+          <p style={{ fontSize: 14.5, lineHeight: 1.75, color: '#1A1A1A', margin: 0 }}>
             {renderInline(trimmed.replace(/^\d+\.\s*/, ''), citations, onCitationClick)}
           </p>
         </div>
       );
-      i++;
-      continue;
+      i++; continue;
     }
-
-    // Money highlight
-    const isMoney = /₹[\d,]+/.test(trimmed);
 
     // Default paragraph
     elements.push(
-      <p key={i} style={{
-        fontSize: 15, lineHeight: 1.9, color: '#1A1A1A', margin: '3px 0',
-        ...(isMoney ? {
-          background: '#FFFBEB', borderLeft: '3px solid #D97706',
-          paddingLeft: 14, borderRadius: '0 6px 6px 0', padding: '4px 10px 4px 14px',
-        } : {}),
-      }}>
+      <p key={i} style={{ fontSize: 14.5, lineHeight: 1.75, color: '#1A1A1A', margin: '2px 0' }}>
         {renderInline(trimmed, citations, onCitationClick)}
       </p>
     );
@@ -225,11 +165,9 @@ function renderMarkdownContent(content, citations, onCitationClick) {
   return elements;
 }
 
-/** Render inline markdown: **bold**, *italic*, `code`, source tags, citations */
 function renderInline(text, citations, onCitationClick) {
   if (!text) return null;
 
-  // First pass: citation replacement
   let parts = [text];
   if (citations && citations.length > 0) {
     citations.forEach(cit => {
@@ -241,21 +179,14 @@ function renderInline(text, citations, onCitationClick) {
           result.push(segments[k]);
           if (k < segments.length - 1) {
             result.push(
-              <span
-                key={`cit-${cit.match_text}-${k}`}
-                onClick={() => onCitationClick(cit)}
+              <span key={`cit-${cit.match_text}-${k}`} onClick={() => onCitationClick(cit)}
                 style={{
-                  color: cit.type === 'statute' ? '#166534' : '#1D4ED8',
-                  background: cit.type === 'statute' ? '#DCFCE7' : '#DBEAFE',
-                  padding: '1px 5px', borderRadius: 4, cursor: 'pointer',
-                  fontWeight: 700, borderBottom: '1.5px dashed currentColor',
-                  transition: 'all 0.2s', fontSize: 14,
+                  color: '#000',
+                  background: '#F0F0F0',
+                  padding: '1px 4px', borderRadius: 3, cursor: 'pointer',
+                  fontWeight: 600, fontSize: 13,
                 }}
-                onMouseEnter={e => e.currentTarget.style.opacity = '0.7'}
-                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-              >
-                {cit.match_text}
-              </span>
+              >{cit.match_text}</span>
             );
           }
         }
@@ -264,48 +195,21 @@ function renderInline(text, citations, onCitationClick) {
     });
   }
 
-  // Second pass: inline markdown
   parts = parts.flatMap(part => {
     if (typeof part !== 'string') return [part];
-    // Split on bold, italic, inline code, source tags, alert emojis
-    const tokens = part.split(/(\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|\*[^*]+\*|\[Source:[^\]]+\]|\[MongoDB[^\]]+\]|\[IndianKanoon[^\]]+\]|\[From training[^\]]*\]|\[verify independently\]|\[🚨[^\]]+\]|\[📌[^\]]+\])/g);
+    const tokens = part.split(/(\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|\*[^*]+\*|\[Source:[^\]]+\]|\[MongoDB[^\]]+\]|\[IndianKanoon[^\]]+\]|\[From training[^\]]*\]|\[verify independently\])/g);
     return tokens.map((token, j) => {
       if (!token) return null;
-      // Bold
-      if ((token.startsWith('**') && token.endsWith('**')) || (token.startsWith('__') && token.endsWith('__'))) {
-        return <strong key={j} style={{ fontWeight: 800, color: '#0A0A0A' }}>{token.slice(2, -2)}</strong>;
-      }
-      // Italic
-      if (token.startsWith('*') && token.endsWith('*') && !token.startsWith('**')) {
-        return <em key={j} style={{ fontStyle: 'italic', color: '#374151' }}>{token.slice(1, -1)}</em>;
-      }
-      // Inline code
-      if (token.startsWith('`') && token.endsWith('`')) {
-        return <code key={j} style={{
-          fontSize: 13, background: '#F3F4F6', border: '1px solid #E5E7EB',
-          padding: '1px 6px', borderRadius: 4, fontFamily: "'IBM Plex Mono', monospace",
-          color: '#1A1A1A',
-        }}>{token.slice(1, -1)}</code>;
-      }
-      // Alert tags
-      if (token.startsWith('[🚨'))
-        return <span key={j} style={{ fontSize: 13, color: '#DC2626', fontWeight: 700 }}>{token}</span>;
-      if (token.startsWith('[📌'))
-        return <span key={j} style={{ fontSize: 13, color: '#92400E', fontWeight: 600 }}>{token}</span>;
-      // Verification tag
+      if ((token.startsWith('**') && token.endsWith('**')) || (token.startsWith('__') && token.endsWith('__')))
+        return <strong key={j} style={{ fontWeight: 700, color: '#0A0A0A' }}>{token.slice(2, -2)}</strong>;
+      if (token.startsWith('*') && token.endsWith('*') && !token.startsWith('**'))
+        return <em key={j} style={{ color: '#374151' }}>{token.slice(1, -1)}</em>;
+      if (token.startsWith('`') && token.endsWith('`'))
+        return <code key={j} style={{ fontSize: 12, background: '#F3F4F6', padding: '1px 5px', borderRadius: 3, fontFamily: 'monospace', color: '#1A1A1A' }}>{token.slice(1, -1)}</code>;
       if (token === '[verify independently]' || token.startsWith('[From training'))
-        return <span key={j} style={{
-          fontSize: 10.5, color: '#6B7280', background: '#FEF3C7', border: '1px solid #FDE68A',
-          padding: '1px 6px', borderRadius: 3, fontFamily: "'IBM Plex Mono', monospace",
-          fontWeight: 600, marginLeft: 2,
-        }}>{token}</span>;
-      // Source tags
+        return <span key={j} style={{ fontSize: 10, color: '#999', background: '#F5F5F5', padding: '1px 5px', borderRadius: 3, fontFamily: 'monospace' }}>{token}</span>;
       if (token.startsWith('[Source:') || token.startsWith('[MongoDB') || token.startsWith('[IndianKanoon'))
-        return <span key={j} style={{
-          fontSize: 10.5, color: '#166534', background: '#F0FDF4', border: '1px solid #BBF7D0',
-          padding: '1px 6px', borderRadius: 3, marginLeft: 3,
-          fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600,
-        }}>{token}</span>;
+        return <span key={j} style={{ fontSize: 10, color: '#000', background: '#F5F5F5', padding: '1px 5px', borderRadius: 3, fontFamily: 'monospace' }}>{token}</span>;
       return token;
     });
   });
@@ -313,39 +217,27 @@ function renderInline(text, citations, onCitationClick) {
   return parts;
 }
 
-/** Render a markdown table */
 function renderTable(tableLines, keyBase) {
   if (tableLines.length < 2) return null;
   const parseRow = line => line.split('|').filter((_, i, arr) => i > 0 && i < arr.length - 1).map(c => c.trim());
   const headers = parseRow(tableLines[0]);
-  // Skip separator row (index 1)
   const rows = tableLines.slice(2).map(parseRow);
 
   return (
-    <div key={keyBase} style={{ overflowX: 'auto', margin: '16px 0' }}>
-      <table style={{
-        width: '100%', borderCollapse: 'collapse', fontSize: 13, lineHeight: 1.6,
-        border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden',
-      }}>
+    <div key={keyBase} style={{ overflowX: 'auto', margin: '12px 0' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
-          <tr style={{ background: '#000', color: '#FFF' }}>
+          <tr style={{ borderBottom: '2px solid #E5E5E5' }}>
             {headers.map((h, hi) => (
-              <th key={hi} style={{
-                padding: '10px 14px', textAlign: 'left', fontWeight: 700,
-                fontSize: 12, letterSpacing: '0.03em', textTransform: 'uppercase',
-                borderRight: hi < headers.length - 1 ? '1px solid #333' : 'none',
-              }}>{h}</th>
+              <th key={hi} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, fontSize: 12, color: '#4B5563' }}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((row, ri) => (
-            <tr key={ri} style={{ background: ri % 2 === 0 ? '#FFFFFF' : '#FAFAFA', borderBottom: '1px solid #F3F4F6' }}>
+            <tr key={ri} style={{ borderBottom: '1px solid #F0F0F0' }}>
               {row.map((cell, ci) => (
-                <td key={ci} style={{
-                  padding: '9px 14px', color: '#1A1A1A', fontWeight: ci === 0 ? 600 : 400,
-                  borderRight: ci < row.length - 1 ? '1px solid #F3F4F6' : 'none',
-                }}>{cell}</td>
+                <td key={ci} style={{ padding: '7px 12px', color: '#1A1A1A', fontWeight: ci === 0 ? 500 : 400 }}>{cell}</td>
               ))}
             </tr>
           ))}
@@ -355,11 +247,31 @@ function renderTable(tableLines, keyBase) {
   );
 }
 
+function detectSmartActions(text) {
+  if (!text) return [];
+  const actions = [];
 
-export default function ResponseCard({ responseText, sections, sources, modelUsed, citations, internalStrategy, onExport, onDraft }) {
+  if (/\bscn\b|show cause notice|section 7[34]|drc-01/i.test(text))
+    actions.push({ label: 'Draft SCN reply', icon: FileWarning, prompt: 'Draft a complete, filing-ready SCN reply based on the above analysis. Include cause title, factual background, legal submissions point-by-point, and prayer clause.' });
+  if (/\bbail\b|section 43[89]|section 483|section 439/i.test(text))
+    actions.push({ label: 'Draft bail application', icon: Gavel, prompt: 'Draft a complete bail application based on the above analysis. Include court header, case details, grounds for bail, undertakings, and prayer.' });
+  if (/\btds\b|section 194|deduct.*tax at source/i.test(text))
+    actions.push({ label: 'TDS computation table', icon: Table2, prompt: 'Generate a complete TDS computation table. Columns: Payment Type | Section | Rate | Threshold | Amount | TDS Amount. Include totals.' });
+  if (/\bnotice\b.*\b(reply|response|challenge)\b|\breply to notice/i.test(text))
+    actions.push({ label: 'Draft notice reply', icon: FileText, prompt: 'Draft a complete formal reply to the notice based on the above analysis.' });
+  if (/\bpenalty\b.*\blate\b|\blate fee\b|\binterest.*delay/i.test(text))
+    actions.push({ label: 'Penalty computation', icon: Table2, prompt: 'Generate a penalty computation sheet. Columns: Filing Type | Due Date | Actual Date | Days Late | Late Fee | Interest | Total.' });
+  if (/\bappeal\b|first appellate|commissioner.*appeals|itat/i.test(text))
+    actions.push({ label: 'Draft appeal memo', icon: FileText, prompt: 'Draft a complete appeal memorandum based on the above analysis.' });
+
+  return actions.slice(0, 3);
+}
+
+export default function ResponseCard({ responseText, sections, sources, modelUsed, citations, internalStrategy, onExport, onDraft, onSmartAction }) {
   const [showReasoning, setShowReasoning] = useState(false);
   const [copied, setCopied] = useState(false);
   const [activeCitation, setActiveCitation] = useState(null);
+  const [showExport, setShowExport] = useState(false);
 
   let fullText = responseText;
   if (!fullText && sections && sections.length > 0) {
@@ -367,6 +279,10 @@ export default function ResponseCard({ responseText, sections, sources, modelUse
       fullText = sections.map(s => s.content).join('\n\n');
     }
   }
+
+  const riskData = useMemo(() => parseRiskAnalysis(fullText), [fullText]);
+  const displayText = useMemo(() => stripRiskAnalysis(fullText), [fullText]);
+
   if (!fullText) return null;
 
   const handleCopy = () => {
@@ -375,153 +291,143 @@ export default function ResponseCard({ responseText, sections, sources, modelUse
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const engineCount = modelUsed ? (modelUsed.match(/\d+/) || ['4'])[0] : '4';
+  const smartActions = detectSmartActions(fullText);
 
   return (
-    <div data-testid="response-card" style={{
-      background: '#FFFFFF',
-      border: '1px solid #E5E7EB',
-      borderRadius: 16,
-      overflow: 'hidden',
-      boxShadow: '0 4px 30px rgba(0,0,0,0.04)',
-    }}>
-      {/* Premium Header */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '14px 24px',
-        borderBottom: '1px solid #F3F4F6',
-        background: '#FAFAFA',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 22, height: 22, background: '#000000', borderRadius: 6,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <Scale style={{ width: 11, height: 11, color: '#FFFFFF' }} />
+    <div style={{ position: 'relative' }}>
+      {/* Response content — no border card, just clean text */}
+      <div style={{ padding: '4px 0' }}>
+        {/* Reasoning toggle */}
+        {internalStrategy && (
+          <div style={{ marginBottom: 12 }}>
+            <button onClick={() => setShowReasoning(!showReasoning)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '4px 10px', background: '#F5F5F5', border: '1px solid #EBEBEB',
+                borderRadius: 100, cursor: 'pointer', fontSize: 12, color: '#999',
+              }}
+            >
+              {showReasoning ? <EyeOff style={{ width: 11, height: 11 }} /> : <Eye style={{ width: 11, height: 11 }} />}
+              {showReasoning ? 'Hide reasoning' : 'Show reasoning'}
+            </button>
+            {showReasoning && (
+              <div style={{
+                marginTop: 8, padding: '12px 14px', background: 'rgba(250,250,250,0.8)', border: '1px solid #F0F0F0',
+                borderRadius: 14, fontSize: 12, color: '#666',
+                backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+                fontFamily: 'monospace', lineHeight: 1.6, whiteSpace: 'pre-wrap',
+                maxHeight: 240, overflowY: 'auto',
+              }}>
+                {internalStrategy}
+              </div>
+            )}
           </div>
-          <span style={{
-            fontSize: 12, fontWeight: 800, color: '#000000',
-            letterSpacing: '0.05em', textTransform: 'uppercase',
-          }}>
-            Associate
-          </span>
-        </div>
+        )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <button onClick={handleCopy}
-            style={{
-              fontSize: 11, fontWeight: 600, padding: '5px 12px',
-              background: copied ? '#F0FDF4' : 'none',
-              border: `1px solid ${copied ? '#BBF7D0' : '#E5E7EB'}`,
-              borderRadius: 6,
-              color: copied ? '#166534' : '#6B7280', cursor: 'pointer',
-              transition: 'all 0.15s',
-              display: 'flex', alignItems: 'center', gap: 4,
-            }}
-            data-testid="copy-response-btn">
-            {copied ? <Check style={{ width: 11, height: 11 }} /> : <Copy style={{ width: 11, height: 11 }} />}
-            {copied ? 'Copied' : 'Copy'}
-          </button>
-        </div>
-      </div>
+        {/* Main content */}
+        {renderMarkdownContent(displayText, citations || (sections && sections[0]?.citations), setActiveCitation)}
 
-      {/* Internal Reasoning Toggle */}
-      {internalStrategy && (
-        <div style={{ borderBottom: '1px solid #F3F4F6' }}>
-          <button onClick={() => setShowReasoning(!showReasoning)}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '8px 24px', background: 'none', border: 'none', cursor: 'pointer',
-              transition: 'background 0.15s',
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = '#FAFAFA'}
-            onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            data-testid="show-reasoning-btn">
-            <span style={{
-              fontSize: 11, fontWeight: 600, letterSpacing: '0.04em',
-              textTransform: 'uppercase', display: 'flex', alignItems: 'center',
-              gap: 6, color: '#9CA3AF',
-            }}>
-              {showReasoning ?
-                <EyeOff style={{ width: 11, height: 11 }} /> :
-                <Eye style={{ width: 11, height: 11 }} />
-              }
-              <BookOpen style={{ width: 11, height: 11 }} />
-              Internal Strategy Chain
-            </span>
-          </button>
-          {showReasoning && (
-            <div style={{
-              padding: '14px 24px', background: '#FAFAFA', borderTop: '1px solid #F3F4F6',
-              fontSize: 12.5, color: '#4B5563',
-              fontFamily: "'IBM Plex Mono', monospace",
-              lineHeight: 1.7, whiteSpace: 'pre-wrap', maxHeight: 300, overflowY: 'auto',
-            }}>
-              {internalStrategy}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* The Premier Content Area */}
-      <div style={{ padding: '28px 32px 32px' }}>
-        {renderMarkdownContent(fullText, citations || (sections && sections[0]?.citations), setActiveCitation)}
+        {riskData && <RiskExposureCard risk={riskData} />}
       </div>
 
       {activeCitation && (
         <CitationPanel citation={activeCitation} onClose={() => setActiveCitation(null)} />
       )}
 
-      {/* Premium footer */}
+      {/* Action bar — compact, clean */}
       <div style={{
-        padding: '12px 24px', borderTop: '1px solid #F3F4F6', background: '#FAFAFA',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8,
+        display: 'flex', alignItems: 'center', gap: 4, marginTop: 16, paddingTop: 12,
+        borderTop: '1px solid #F0F0F0', flexWrap: 'wrap',
       }}>
-        {/* Source indicators */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-          {sources?.statutes_referenced && (
-            <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 10px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 4, color: '#166534', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Shield style={{ width: 10, height: 10 }} /> Statute DB Verified
-            </span>
-          )}
-          {sources?.indiankanoon?.length > 0 && (
-            <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 10px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 4, color: '#1D4ED8', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <BookOpen style={{ width: 10, height: 10 }} /> IndianKanoon ({sources.indiankanoon.length})
-            </span>
-          )}
-          <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 10px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 4, color: '#92400E', display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Shield style={{ width: 10, height: 10 }} /> Citation Guard
-          </span>
-        </div>
+        {/* Copy */}
+        <button onClick={handleCopy}
+          style={{
+            fontSize: 12, padding: '5px 10px', background: 'none',
+            border: '1px solid #EBEBEB', borderRadius: 100, cursor: 'pointer',
+            color: copied ? '#000' : '#999', display: 'flex', alignItems: 'center', gap: 4,
+            transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { if (!copied) e.currentTarget.style.color = '#666'; }}
+          onMouseLeave={e => { if (!copied) e.currentTarget.style.color = '#999'; }}
+        >
+          {copied ? <Check style={{ width: 11, height: 11 }} /> : <Copy style={{ width: 11, height: 11 }} />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
 
-        {/* Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          {onExport && ['docx', 'pdf'].map(fmt => (
-            <button key={fmt} onClick={() => onExport(fmt)}
+        {/* Export dropdown */}
+        {onExport && (
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowExport(!showExport)}
               style={{
-                fontSize: 11, fontWeight: 700, padding: '5px 12px',
-                background: '#fff', border: '1px solid #E5E7EB', borderRadius: 6,
-                color: '#6B7280', cursor: 'pointer', transition: 'all 0.15s',
-                display: 'flex', alignItems: 'center', gap: 4,
+                fontSize: 12, padding: '5px 10px', background: 'none',
+                border: '1px solid #EBEBEB', borderRadius: 100, cursor: 'pointer',
+                color: '#999', display: 'flex', alignItems: 'center', gap: 4,
+                transition: 'all 0.15s',
               }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.color = '#000'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.color = '#6B7280'; }}
-              data-testid={`export-${fmt}-btn`}>
-              <FileDown style={{ width: 11, height: 11 }} /> {fmt.toUpperCase()}
+              onMouseEnter={e => e.currentTarget.style.color = '#666'}
+              onMouseLeave={e => e.currentTarget.style.color = '#999'}
+            >
+              <FileDown style={{ width: 11, height: 11 }} />
+              Export
+              <ChevronDown style={{ width: 10, height: 10 }} />
             </button>
-          ))}
-          {onDraft && (
-            <button onClick={onDraft}
-              style={{
-                fontSize: 11, fontWeight: 700, padding: '5px 14px',
-                background: '#000', border: '1px solid #000', borderRadius: 6,
-                color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-              }}
-              data-testid="draft-this-btn">
-              <Edit3 style={{ width: 11, height: 11 }} /> Draft →
-            </button>
-          )}
-        </div>
+            {showExport && (
+              <div style={{
+                position: 'absolute', bottom: '110%', left: 0,
+                background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid #E5E5E5', borderRadius: 12,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.06)', zIndex: 20, padding: 2,
+                minWidth: 100,
+              }}>
+                {['docx', 'xlsx', 'pdf'].map(fmt => (
+                  <button key={fmt} onClick={() => { onExport(fmt); setShowExport(false); }}
+                    style={{
+                      width: '100%', textAlign: 'left', padding: '6px 12px',
+                      fontSize: 12, color: '#4B5563', background: 'none', border: 'none',
+                      cursor: 'pointer', borderRadius: 4, transition: 'background 0.1s',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#F5F5F5'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  >
+                    {fmt.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Smart actions */}
+        {smartActions.map((action, idx) => (
+          <button key={idx}
+            onClick={() => onSmartAction ? onSmartAction(action.prompt) : onDraft?.()}
+            style={{
+              fontSize: 12, padding: '5px 10px', background: '#0A0A0A',
+              border: 'none', borderRadius: 100, cursor: 'pointer',
+              color: '#fff', display: 'flex', alignItems: 'center', gap: 4,
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = '#333'}
+            onMouseLeave={e => e.currentTarget.style.background = '#0A0A0A'}
+          >
+            <action.icon style={{ width: 11, height: 11 }} /> {action.label}
+          </button>
+        ))}
+
+        {onDraft && (
+          <button onClick={onDraft}
+            style={{
+              fontSize: 12, padding: '5px 10px', background: 'none',
+              border: '1px solid #EBEBEB', borderRadius: 100, cursor: 'pointer',
+              color: '#999', display: 'flex', alignItems: 'center', gap: 4,
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.color = '#666'}
+            onMouseLeave={e => e.currentTarget.style.color = '#999'}
+          >
+            <Edit3 style={{ width: 11, height: 11 }} /> Draft
+          </button>
+        )}
       </div>
     </div>
   );
