@@ -5,7 +5,8 @@ import ResponseCard from '../components/ResponseCard';
 import api from '../services/api';
 import {
   Plus, FileText, Loader2,
-  Paperclip, ArrowUp, X, ChevronDown, Scale, ArrowRight
+  Paperclip, ArrowUp, X, ChevronDown, Scale, ArrowRight,
+  MessageSquare, Receipt, Calculator, ArrowLeftRight, FileWarning, Shield
 } from 'lucide-react';
 
 const display = "'Plus Jakarta Sans', 'Inter', sans-serif";
@@ -22,12 +23,14 @@ const MODES = [
     id: 'assistant',
     label: 'Assistant',
     description: 'Legal & tax AI',
+    icon: MessageSquare,
     placeholder: 'Ask anything about Indian law and tax...',
     isChat: true,
   },
   {
     id: 'tds',
     label: 'TDS Classifier',
+    icon: Receipt,
     description: 'Detect section & rate',
     placeholder: 'Describe the payment...',
     endpoint: '/tools/tds-classifier',
@@ -53,6 +56,7 @@ const MODES = [
   {
     id: 'penalty',
     label: 'Penalty Calc',
+    icon: Calculator,
     description: 'Late filing penalties',
     placeholder: 'Notes (optional)...',
     endpoint: '/tools/penalty-calculator',
@@ -83,6 +87,7 @@ const MODES = [
   {
     id: 'mapper',
     label: 'Section Map',
+    icon: ArrowLeftRight,
     description: 'IPC/CrPC ↔ BNS/BNSS',
     placeholder: 'Enter section number (e.g., 420, 302)...',
     endpoint: '/tools/section-mapper',
@@ -104,6 +109,7 @@ const MODES = [
   {
     id: 'notice-reply',
     label: 'Notice Reply',
+    icon: FileWarning,
     description: 'Auto-draft legal replies',
     placeholder: 'Paste the full notice text here...',
     endpoint: '/tools/notice-auto-reply',
@@ -135,6 +141,7 @@ const MODES = [
   {
     id: 'notice-check',
     label: 'Notice Check',
+    icon: Shield,
     description: 'Validity & jurisdiction',
     placeholder: 'Notes (optional)...',
     endpoint: '/tools/notice-checker',
@@ -571,52 +578,58 @@ export default function AssistantPage() {
 
         {/* ═══ EMPTY STATE ═══ */}
         {!hasConversations && (
-          <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 28px', width: '100%' }}>
-            <div style={{ animation: 'fadeIn 0.5s ease-out', textAlign: 'center', marginBottom: 44 }}>
-              <h1 style={{ fontFamily: display, fontSize: 42, fontWeight: 600, color: '#0A0A0A', letterSpacing: '-0.04em', lineHeight: 1.1, marginBottom: 8 }}>
+          <div style={{ maxWidth: 720, margin: '0 auto', padding: '0 32px', width: '100%' }}>
+            {/* Greeting — compact */}
+            <div style={{ animation: 'fadeIn 0.5s ease-out', textAlign: 'center', marginBottom: 32 }}>
+              <h1 style={{ fontFamily: display, fontSize: 36, fontWeight: 700, color: '#0A0A0A', letterSpacing: '-0.04em', lineHeight: 1.1, marginBottom: 6 }}>
                 {getGreeting()}
               </h1>
-              <p style={{ fontSize: 16, color: '#B0B0B0', lineHeight: 1.5 }}>
+              <p style={{ fontSize: 15, color: '#B0B0B0', lineHeight: 1.5 }}>
                 Tax, legal, compliance — grounded and cited.
               </p>
             </div>
 
-            {/* 6 Tool cards — 3x2 grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 36 }}>
-              {MODES.map((mode, i) => (
-                <button key={mode.id} onClick={() => { selectModeAndClose(mode.id); inputRef.current?.focus(); }}
-                  style={{
-                    textAlign: 'left', padding: '18px 20px',
-                    border: '1px solid #EBEBEB', borderRadius: 12, background: '#fff', cursor: 'pointer',
-                    transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                    animation: `slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) ${i * 40}ms both`,
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#D0D0D0'; e.currentTarget.style.background = '#FAFAFA'; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#EBEBEB'; e.currentTarget.style.background = '#fff'; }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A', letterSpacing: '-0.01em', marginBottom: 4 }}>{mode.label}</div>
-                  <div style={{ fontSize: 12.5, color: '#B0B0B0', lineHeight: 1.35 }}>{mode.description}</div>
-                </button>
-              ))}
+            {/* 6 Tool cards — 3x2 grid with icons */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 24 }}>
+              {MODES.map((mode, i) => {
+                const Icon = mode.icon;
+                return (
+                  <button key={mode.id} onClick={() => { selectModeAndClose(mode.id); inputRef.current?.focus(); }}
+                    style={{
+                      textAlign: 'left', padding: '16px 18px',
+                      border: '1px solid #EBEBEB', borderRadius: 12, background: '#fff', cursor: 'pointer',
+                      transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                      animation: `slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) ${i * 40}ms both`,
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#CCC'; e.currentTarget.style.background = '#FAFAFA'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#EBEBEB'; e.currentTarget.style.background = '#fff'; e.currentTarget.style.transform = 'translateY(0)'; }}>
+                    <Icon style={{ width: 18, height: 18, color: '#0A0A0A', marginBottom: 10, strokeWidth: 1.5 }} />
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#0A0A0A', letterSpacing: '-0.01em', marginBottom: 2 }}>{mode.label}</div>
+                    <div style={{ fontSize: 12, color: '#B0B0B0', lineHeight: 1.35 }}>{mode.description}</div>
+                  </button>
+                );
+              })}
             </div>
 
-            {/* 4 Suggestions */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 32 }}>
+            {/* 4 Suggestions — compact */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20 }}>
               {SUGGESTED.map((s, i) => (
                 <button key={i} onClick={() => { setQuery(s.text); inputRef.current?.focus(); }}
                   style={{
-                    textAlign: 'left', padding: '18px 20px', border: '1px solid #EBEBEB', borderRadius: 12, background: '#fff', cursor: 'pointer',
+                    textAlign: 'left', padding: '14px 16px', border: '1px solid #EBEBEB', borderRadius: 10, background: '#fff', cursor: 'pointer',
                     transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                    animation: `slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) ${240 + i * 40}ms both`,
+                    animation: `slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) ${240 + i * 40}ms both`,
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#D0D0D0'; e.currentTarget.style.background = '#FAFAFA'; }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#CCC'; e.currentTarget.style.background = '#FAFAFA'; }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = '#EBEBEB'; e.currentTarget.style.background = '#fff'; }}>
-                  <div style={{ fontSize: 14.5, fontWeight: 600, color: '#0A0A0A', marginBottom: 5 }}>{s.label}</div>
-                  <div style={{ fontSize: 13, color: '#AAA', lineHeight: 1.45 }}>{s.preview}</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: '#0A0A0A', marginBottom: 3 }}>{s.label}</div>
+                  <div style={{ fontSize: 12, color: '#AAA', lineHeight: 1.4 }}>{s.preview}</div>
                 </button>
               ))}
             </div>
 
-            <div style={{ textAlign: 'center', animation: 'fadeIn 0.6s ease-out 400ms both' }}>
+            {/* Workflows link */}
+            <div style={{ textAlign: 'center', animation: 'fadeIn 0.5s ease-out 350ms both' }}>
               <button onClick={() => nav('/app/workflows')}
                 style={{ fontSize: 13, fontWeight: 500, color: '#999', background: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, transition: 'color 0.15s' }}
                 onMouseEnter={e => e.currentTarget.style.color = '#0A0A0A'} onMouseLeave={e => e.currentTarget.style.color = '#999'}>
