@@ -18,6 +18,337 @@ logger = logging.getLogger(__name__)
 
 EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
 
+# =====================================================================
+# AGENT TOOL-CALLING SYSTEM — Full Platform Access for AI Assistant
+# The AI agent can autonomously invoke any platform tool during a query.
+# =====================================================================
+
+from practice_tools import (
+    map_section, batch_map_sections, classify_tds_section,
+    check_notice_validity, calculate_deadline_penalty, parse_tally_xml
+)
+from notice_reply_engine import generate_notice_reply, extract_notice_metadata
+
+# Tool definitions that the AI model can call
+AGENT_TOOLS = {
+    "section_mapper": {
+        "name": "section_mapper",
+        "description": "Map old criminal law sections (IPC/CrPC/IEA) to new codes (BNS/BNSS/BSA) or vice versa. Use when user mentions any IPC, CrPC, IEA, BNS, BNSS, or BSA section number.",
+        "parameters": {
+            "section": "The section number (e.g., '420', '302', '438')",
+            "direction": "'old_to_new' (IPC→BNS) or 'new_to_old' (BNS→IPC). Default: old_to_new"
+        },
+    },
+    "tds_classifier": {
+        "name": "tds_classifier",
+        "description": "Classify a payment under the correct TDS section with rate, threshold, and compliance notes. Use when user asks about TDS on any payment type.",
+        "parameters": {
+            "payment_description": "Description of the payment (e.g., 'professional fees to CA', 'rent for office')",
+            "amount": "Payment amount in INR (optional, default 0)",
+            "payee_type": "'company' or 'individual' (optional, default 'company')",
+            "is_non_filer": "Whether payee is a non-filer for S.206AB (optional, default false)"
+        },
+    },
+    "notice_validity_checker": {
+        "name": "notice_validity_checker",
+        "description": "Check if a tax/GST notice is legally valid. Checks limitation periods, DIN compliance, and procedural defects. Use when user mentions receiving a notice or asks about notice validity.",
+        "parameters": {
+            "notice_type": "Type: '73', '74', '143(2)', '148', '148A'",
+            "notice_date": "Date of notice in YYYY-MM-DD format",
+            "assessment_year": "Assessment year (optional, e.g., '2023-24')",
+            "financial_year": "Financial year (optional, e.g., '2022-23')",
+            "has_din": "Whether notice has DIN (true/false, default true)",
+            "is_fraud_alleged": "Whether fraud is alleged (true/false, default false)"
+        },
+    },
+    "penalty_calculator": {
+        "name": "penalty_calculator",
+        "description": "Calculate exact penalty, interest, and total exposure for missing a compliance deadline. Covers GST, Income Tax, TDS, and ROC filings.",
+        "parameters": {
+            "deadline_type": "Type: 'gstr3b', 'gstr1', 'gstr9', 'itr', 'tds_return', 'tds_payment', 'roc_annual'",
+            "due_date": "Due date in YYYY-MM-DD format",
+            "actual_date": "Actual/expected filing date in YYYY-MM-DD (optional, defaults to today)",
+            "tax_amount": "Tax amount involved in INR (optional, default 0)"
+        },
+    },
+    "notice_auto_reply": {
+        "name": "notice_auto_reply",
+        "description": "Generate a complete formal legal reply to a tax notice. Extracts metadata, checks validity, and drafts a 10-point reply with case law citations. Use when user asks to draft/generate a reply to a tax notice.",
+        "parameters": {
+            "notice_text": "Full text of the tax notice",
+            "client_name": "Name of the client (optional)",
+            "additional_context": "Any additional instructions or context (optional)"
+        },
+    },
+    "case_law_search": {
+        "name": "case_law_search",
+        "description": "Search IndianKanoon for relevant case law and precedents. Use when user asks about case law, precedents, or judicial decisions on a specific topic.",
+        "parameters": {
+            "query": "The legal topic or case law search query"
+        },
+    },
+}
+
+# Prompt block describing available tools for the AI model
+TOOL_DESCRIPTIONS_FOR_PROMPT = """
+## AUTONOMOUS TOOL ACCESS (FULL PLATFORM ACCESS)
+
+You have direct access to the following specialized tools. When a user's query can benefit from running a tool, you MUST call it by outputting a <tool_call> block. You may call MULTIPLE tools in sequence.
+
+### Available Tools:
+
+1. **section_mapper** — Map IPC/CrPC/IEA sections to BNS/BNSS/BSA (or reverse)
+   Call: `<tool_call>{"tool": "section_mapper", "args": {"section": "420", "direction": "old_to_new"}}</tool_call>`
+
+2. **tds_classifier** — Classify payment under correct TDS section with rate & threshold
+   Call: `<tool_call>{"tool": "tds_classifier", "args": {"payment_description": "professional fees to CA", "amount": 500000}}</tool_call>`
+
+3. **notice_validity_checker** — Check if a tax/GST notice is legally valid (limitation, DIN, etc.)
+   Call: `<tool_call>{"tool": "notice_validity_checker", "args": {"notice_type": "74", "notice_date": "2025-01-15", "has_din": false}}</tool_call>`
+
+4. **penalty_calculator** — Calculate exact penalty for missing a compliance deadline
+   Call: `<tool_call>{"tool": "penalty_calculator", "args": {"deadline_type": "gstr3b", "due_date": "2025-03-20", "actual_date": "2025-06-15", "tax_amount": 500000}}</tool_call>`
+
+5. **notice_auto_reply** — Draft a complete formal legal reply to a tax notice
+   Call: `<tool_call>{"tool": "notice_auto_reply", "args": {"notice_text": "...", "client_name": "M/s Sharma Enterprises"}}</tool_call>`
+
+6. **case_law_search** — Search IndianKanoon for precedents on a specific legal topic
+   Call: `<tool_call>{"tool": "case_law_search", "args": {"query": "S.148A notice without DIN void ab initio"}}</tool_call>`
+
+### TOOL CALL RULES:
+- Output <tool_call>...</tool_call> blocks BEFORE your main response when tools are needed
+- You may call multiple tools — each in its own <tool_call> block
+- After tool results are injected, incorporate them naturally into your analysis
+- ALWAYS use tools when the query involves: section mapping, TDS classification, notice checking, penalty calculation, or notice reply drafting
+- Tool results contain VERIFIED DATA — cite them as [Source: Associate Platform Tool — verified]
+"""
+
+
+async def execute_agent_tool(tool_name: str, args: dict) -> dict:
+    """Execute a platform tool and return structured results."""
+    try:
+        if tool_name == "section_mapper":
+            section = args.get("section", "")
+            direction = args.get("direction", "old_to_new")
+            # Handle batch if multiple sections provided
+            if "," in section or ";" in section:
+                sections = [s.strip() for s in re.split(r'[,;]', section) if s.strip()]
+                results = batch_map_sections(sections, direction)
+                return {"tool": "section_mapper", "success": True, "results": results}
+            else:
+                result = map_section(section, direction)
+                return {"tool": "section_mapper", "success": True, "result": result}
+
+        elif tool_name == "tds_classifier":
+            result = classify_tds_section(
+                payment_description=args.get("payment_description", ""),
+                amount=float(args.get("amount", 0)),
+                payee_type=args.get("payee_type", "company"),
+                is_non_filer=bool(args.get("is_non_filer", False))
+            )
+            return {"tool": "tds_classifier", "success": True, "result": result}
+
+        elif tool_name == "notice_validity_checker":
+            result = check_notice_validity(
+                notice_type=args.get("notice_type", ""),
+                notice_date=args.get("notice_date", ""),
+                assessment_year=args.get("assessment_year", ""),
+                financial_year=args.get("financial_year", ""),
+                has_din=args.get("has_din", True),
+                is_fraud_alleged=args.get("is_fraud_alleged", False)
+            )
+            return {"tool": "notice_validity_checker", "success": True, "result": result}
+
+        elif tool_name == "penalty_calculator":
+            result = calculate_deadline_penalty(
+                deadline_type=args.get("deadline_type", ""),
+                due_date=args.get("due_date", ""),
+                actual_date=args.get("actual_date", ""),
+                tax_amount=float(args.get("tax_amount", 0))
+            )
+            return {"tool": "penalty_calculator", "success": True, "result": result}
+
+        elif tool_name == "notice_auto_reply":
+            result = await generate_notice_reply(
+                notice_text=args.get("notice_text", ""),
+                client_name=args.get("client_name", ""),
+                additional_context=args.get("additional_context", "")
+            )
+            return {"tool": "notice_auto_reply", "success": True, "result": result}
+
+        elif tool_name == "case_law_search":
+            results = await search_indiankanoon(args.get("query", ""), top_k=5)
+            return {"tool": "case_law_search", "success": True, "results": results}
+
+        else:
+            return {"tool": tool_name, "success": False, "error": f"Unknown tool: {tool_name}"}
+
+    except Exception as e:
+        logger.error(f"Tool execution error ({tool_name}): {e}")
+        return {"tool": tool_name, "success": False, "error": str(e)}
+
+
+def detect_tool_calls(response_text: str) -> list:
+    """Parse <tool_call>...</tool_call> blocks from AI response."""
+    import json
+    calls = []
+    pattern = r'<tool_call>\s*(\{.*?\})\s*</tool_call>'
+    matches = re.findall(pattern, response_text, re.DOTALL)
+    for match in matches:
+        try:
+            parsed = json.loads(match)
+            if "tool" in parsed:
+                calls.append(parsed)
+        except json.JSONDecodeError:
+            logger.warning(f"Failed to parse tool call: {match[:100]}")
+    return calls
+
+
+def strip_tool_calls(response_text: str) -> str:
+    """Remove <tool_call> blocks from the response text."""
+    return re.sub(r'<tool_call>\s*\{.*?\}\s*</tool_call>', '', response_text, flags=re.DOTALL).strip()
+
+
+def format_tool_results(tool_results: list) -> str:
+    """Format tool execution results as context for the AI."""
+    import json
+    parts = ["\n=== TOOL EXECUTION RESULTS (AUTO-INVOKED BY ASSOCIATE AGENT) ===\n"]
+    for tr in tool_results:
+        tool_name = tr.get("tool", "unknown")
+        if tr.get("success"):
+            result_data = tr.get("result") or tr.get("results", [])
+            parts.append(f"\n[TOOL: {tool_name}] — SUCCESS\n{json.dumps(result_data, indent=2, default=str)}\n")
+        else:
+            parts.append(f"\n[TOOL: {tool_name}] — FAILED: {tr.get('error', 'Unknown error')}\n")
+    parts.append("\n=== END TOOL RESULTS ===\n")
+    parts.append("Incorporate the above tool results into your analysis. Cite tool results as [Source: Associate Platform Tool — verified].\n")
+    return "\n".join(parts)
+
+
+def auto_detect_tools_needed(user_query: str) -> list:
+    """Pre-detect which tools should be auto-invoked based on query keywords."""
+    query_lower = user_query.lower()
+    auto_calls = []
+
+    # Section mapper: detect IPC/BNS section references
+    section_patterns = [
+        (r'\b(?:section|s\.?)\s*(\d{1,3}[A-Za-z]?)\s*(?:ipc|bns|crpc|bnss|iea|bsa)\b', "old_to_new"),
+        (r'\b(?:ipc|crpc|iea)\s*(?:section|s\.?)?\s*(\d{1,3}[A-Za-z]?)\b', "old_to_new"),
+        (r'\b(?:bns|bnss|bsa)\s*(?:section|s\.?)?\s*(\d{1,3}[A-Za-z]?)\b', "new_to_old"),
+    ]
+    for pattern, direction in section_patterns:
+        matches = re.findall(pattern, query_lower, re.IGNORECASE)
+        for sec in matches:
+            auto_calls.append({"tool": "section_mapper", "args": {"section": sec.upper(), "direction": direction}})
+
+    # TDS classifier: detect TDS payment queries
+    tds_triggers = ["tds on", "tds for", "tds rate", "tds section", "tds applicable", "what tds", "which tds",
+                    "deduct tds", "tds deduction", "194c", "194j", "194h", "194i", "194a", "194t",
+                    "tds applies", "tds to be deducted", "tds payable"]
+    if any(t in query_lower for t in tds_triggers):
+        # Extract payment description with multiple patterns
+        desc_match = re.search(r'tds\s+(?:on|for|applicable\s+(?:on|to)|applies\s+to|payable\s+on)\s+(.+?)(?:\.|,|\?|$)', query_lower)
+        if not desc_match:
+            desc_match = re.search(r'(?:tds\s+section\s+(?:for|applies?\s+to|on))\s+(.+?)(?:\.|,|\?|$)', query_lower)
+        if not desc_match:
+            # Fallback: extract any payment-like phrase from the query
+            desc_match = re.search(r'(?:payment\s+to\s+.+?|rent\s+.+?|professional\s+fees?\s+.+?|commission\s+.+?|contractor\s+.+?|salary\s+.+?|interest\s+.+?)(?:\.|,|\?|$)', query_lower)
+        if desc_match:
+            desc = desc_match.group(1).strip() if desc_match.lastindex else desc_match.group(0).strip()
+            auto_calls.append({"tool": "tds_classifier", "args": {"payment_description": desc}})
+
+    # Notice validity: detect notice-related queries
+    notice_triggers = ["notice validity", "notice valid", "challenge notice", "notice without din",
+                       "no din", "limitation period", "notice time barred", "is the notice valid",
+                       "received a.*notice", "got a.*notice", "s\\.73 notice", "s\\.74 notice",
+                       "section 73 notice", "section 74 notice", "148a? notice", "148.*notice",
+                       "143.*notice", "notice.*without din", "notice.*valid"]
+    is_notice_query = any(re.search(t, query_lower) for t in notice_triggers)
+    if is_notice_query:
+        # Extract notice details
+        notice_type = ""
+        if "section 74" in query_lower or "s.74" in query_lower or "s 74" in query_lower:
+            notice_type = "74"
+        elif "section 73" in query_lower or "s.73" in query_lower or "s 73" in query_lower:
+            notice_type = "73"
+        elif "148a" in query_lower or "148" in query_lower:
+            notice_type = "148"
+        elif "143(2)" in query_lower or "143" in query_lower:
+            notice_type = "143(2)"
+
+        has_din = "without din" not in query_lower and "no din" not in query_lower
+        # Try multiple date formats
+        date_match = re.search(r'(\d{4}-\d{2}-\d{2})', user_query)
+        if not date_match:
+            date_match = re.search(r'dated?\s+(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})', user_query, re.IGNORECASE)
+            if date_match:
+                # Convert DD/MM/YYYY to YYYY-MM-DD
+                notice_date = f"{date_match.group(3)}-{date_match.group(2).zfill(2)}-{date_match.group(1).zfill(2)}"
+            else:
+                notice_date = ""
+        else:
+            notice_date = date_match.group(1)
+
+        if notice_type:
+            # Even without a date, still call the tool if we have a notice type
+            if not notice_date:
+                notice_date = datetime.now().strftime("%Y-%m-%d")  # Default to today
+            auto_calls.append({"tool": "notice_validity_checker", "args": {
+                "notice_type": notice_type,
+                "notice_date": notice_date,
+                "has_din": has_din,
+                "is_fraud_alleged": "fraud" in query_lower or "suppression" in query_lower,
+            }})
+
+    # Penalty calculator: detect penalty/late filing queries
+    penalty_triggers = ["penalty for late", "late fee", "late filing", "missed deadline",
+                        "interest on late", "penalty calculation", "how much penalty", "calculate penalty",
+                        "penalty amount", "late return", "delayed filing"]
+    penalty_regex_triggers = [r"filed\s+\S+\s+late", r"filed\s+late"]
+    is_penalty_query = any(t in query_lower for t in penalty_triggers) or any(re.search(p, query_lower) for p in penalty_regex_triggers)
+    if is_penalty_query:
+        deadline_type = ""
+        if "gstr-3b" in query_lower or "gstr3b" in query_lower:
+            deadline_type = "gstr3b"
+        elif "gstr-1" in query_lower or "gstr1" in query_lower:
+            deadline_type = "gstr1"
+        elif "gstr-9" in query_lower or "gstr9" in query_lower:
+            deadline_type = "gstr9"
+        elif "itr" in query_lower or "income tax return" in query_lower:
+            deadline_type = "itr"
+        elif "tds return" in query_lower or "24q" in query_lower or "26q" in query_lower:
+            deadline_type = "tds_return"
+        elif "tds deposit" in query_lower or "tds challan" in query_lower:
+            deadline_type = "tds_deposit"
+        elif "roc" in query_lower or "aoc-4" in query_lower or "mgt-7" in query_lower:
+            deadline_type = "roc"
+
+        # Try ISO dates first, then DD/MM/YYYY
+        dates = re.findall(r'(\d{4}-\d{2}-\d{2})', user_query)
+        if not dates:
+            date_matches = re.findall(r'(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})', user_query)
+            dates = [f"{m[2]}-{m[1].zfill(2)}-{m[0].zfill(2)}" for m in date_matches]
+
+        if deadline_type:
+            args = {"deadline_type": deadline_type}
+            if len(dates) >= 2:
+                args["due_date"] = dates[0]
+                args["actual_date"] = dates[1]
+            elif len(dates) == 1:
+                args["due_date"] = dates[0]
+            auto_calls.append({"tool": "penalty_calculator", "args": args})
+
+    # Deduplicate
+    seen = set()
+    unique_calls = []
+    for call in auto_calls:
+        key = f"{call['tool']}_{call['args'].get('section', '')}_{call['args'].get('payment_description', '')}"
+        if key not in seen:
+            seen.add(key)
+            unique_calls.append(call)
+
+    return unique_calls
+
 ASSOCIATE_SYSTEM_PROMPT = """# SYSTEM PROMPT: SENIOR INDIAN & INTERNATIONAL TAX ADVISORY AI
 ## Version 2.0 — Enterprise Edition
 
@@ -277,9 +608,45 @@ The following statements are LEGALLY INCORRECT and must NEVER appear in any resp
 
 ---
 
+## THE RISK INTELLIGENCE MANDATE — THIS IS WHAT MAKES ASSOCIATE DIFFERENT
+
+You are NOT a legal encyclopaedia. You are NOT a chatbot. You are NOT a document drafter by default.
+You are a **Risk Intelligence Engine** — the first AI that quantifies legal and tax exposure with exact rupee amounts, compares strategies with numbers, and recommends the optimal move.
+
+**YOUR CORE DIFFERENTIATOR (no other legal AI does this):**
+Every substantive response MUST include a structured risk block at the end in this EXACT format:
+
+```
+<risk_analysis>
+EXPOSURE: ₹[exact amount] (worst case) | ₹[amount] (most likely) | ₹[amount] (best case)
+WIN_PROBABILITY: [X]% at [forum] based on [reasoning]
+STRATEGY_A: [Name] — Cost: ₹[amount] | Timeline: [X months] | Success: [X]%
+STRATEGY_B: [Name] — Cost: ₹[amount] | Timeline: [X months] | Success: [X]%
+STRATEGY_C: [Name] — Cost: ₹[amount] | Timeline: [X months] | Success: [X]%
+RECOMMENDED: [Strategy name] — [one-line reasoning]
+DEADLINE: [Next critical deadline with exact date and days remaining]
+CASCADE: [List each downstream impact: e.g., "ITC reversal ₹X → S.50 interest ₹Y → S.270A penalty ₹Z → IT disallowance ₹W"]
+</risk_analysis>
+```
+
+**JUDGMENT RULES — When to do what:**
+1. **User asks a question** → Analyze with depth. Quantify risk. Show strategy comparison. End with the risk_analysis block.
+2. **User explicitly says "draft" / "create" / "generate"** → Output ONLY the requested document. No analysis essay. No preamble. Still include risk_analysis if relevant.
+3. **User describes a situation** ("my client received a notice", "we filed late") → Full strategic analysis with risk quantification. If a document would clearly help (reply, computation), offer it but don't auto-generate unless asked.
+4. **Simple factual question** ("What is S.194C rate?") → Direct answer. No bloat. Include the number and move on.
+
+**THE MULTI-LAW CASCADE — What NO other AI catches:**
+When analyzing ANY scenario, ALWAYS check if MULTIPLE laws are triggered simultaneously:
+- Property sale? → Capital Gains (IT Act) + GST (if commercial) + Stamp Duty + TCS u/s 194-IA + FEMA (if NRI)
+- Employee payment? → TDS u/s 192 + PF/ESI (labour law) + Gratuity Act + Professional Tax + S.43B timing
+- ITC reversal? → GST liability + S.50 interest + S.122 penalty + GSTR-9 reconciliation + IT S.43B disallowance + S.234B/C advance tax interest
+- Notice received? → Limitation check + DIN compliance + jurisdiction + constitutional validity + parallel proceedings risk
+
+**ALWAYS map the full domino chain. Missing one downstream impact is malpractice.**
+
 ## THE CHESS MOVE MANDATE
 
-You are not a legal encyclopaedia. You are a litigator and strategist. Every response MUST answer TWO questions:
+Every response MUST answer TWO questions:
 1. **"What is the law?"** — the statutory framework, the case law, the procedure.
 2. **"What is the MOVE?"** — what should the client DO to WIN or MINIMIZE EXPOSURE?
 
@@ -297,6 +664,97 @@ For every dispute or risk scenario, your response MUST include:
 - The **worst-case outcome** and how to mitigate it
 - The **specific next step** with a deadline
 - The **cost-benefit analysis** of fighting vs settling
+
+---
+
+## CLEAN OUTPUT FORMAT — NO INFORMATION DUMPS (CRITICAL)
+
+Your response must feel like reading a senior partner's advisory memo — structured, scannable, and decisive. NOT a wall of text.
+
+### MANDATORY STRUCTURE FOR ANALYTICAL RESPONSES:
+Use this hierarchy. Skip sections that don't apply, but never skip the structure:
+
+**1. BOTTOM LINE** (1-2 sentences — the answer, upfront, no preamble)
+Start with the conclusion. "The notice is time-barred under Section 73." or "TDS at 10% under Section 194J applies." The reader should know the answer in 3 seconds.
+
+**2. STATUTORY BASIS** (cite exact sections with source tags)
+- Quote the operative provision verbatim (or near-verbatim) from the DB record
+- Format: `**Section X of [Act]:** "[quoted text]"` followed by `[Source: MongoDB Statute DB — §X verified]` or `[From training — verify independently]`
+- Only cite what's directly relevant. 3 precise citations > 8 tangential ones.
+
+**3. APPLICATION TO YOUR FACTS** (connect law → client's situation)
+- Map each legal point to the specific facts the user provided
+- Flag what's missing: "If the notice was issued after [date], then..."
+- Show the math if numbers are involved
+
+**4. THE MOVE** (specific, actionable, with deadlines)
+- What to DO, not what to know
+- Include exact deadlines with dates, not "within 30 days"
+- If multiple options exist, compare them briefly (detailed comparison goes in risk_analysis)
+
+**5. CITATIONS** (end with a clean source list)
+Use this format at the very end of the response (BEFORE the risk_analysis block):
+```
+**Sources:**
+- §[number], [Act Name] — [MongoDB Statute DB / IndianKanoon / Training]
+- [Case Name] ([Year]) [Court] — [IndianKanoon Live API]
+```
+
+### FORMATTING RULES:
+- Use **bold** for section numbers and key terms
+- Use bullet points, not paragraphs, for multi-point analysis
+- Use `>` blockquotes for statutory quotations
+- Keep paragraphs to 3 lines max — break up walls of text
+- Tables for comparisons (strategies, rates, deadlines)
+- No redundancy — say it once, say it right
+- No filler transitions ("Let us now examine...", "Moving on to...")
+- No restating the user's question back to them
+
+---
+
+## ADVANCED REASONING CHAINS — EDGE CASES THAT SEPARATE EXPERTS FROM AMATEURS
+
+### OLD LAW ↔ NEW LAW TRANSITION (Mandatory Check for Criminal Matters)
+- If the offence occurred BEFORE 01-07-2024: cite IPC/CrPC/IEA sections
+- If the offence occurred ON OR AFTER 01-07-2024: cite BNS/BNSS/BSA sections
+- For TRANSITIONAL CASES (offence before, trial after): the substantive law (IPC vs BNS) follows the date of offence; the procedural law (CrPC vs BNSS) follows the date of the proceeding. This is per the savings clause in S.531 BNSS.
+- ALWAYS provide BOTH old and new section numbers for the reader's convenience
+
+### GST ITC REVERSAL CASCADE (Most Missed Chain)
+When ITC is denied/reversed, there is a CASCADE of downstream effects most CAs miss:
+1. ITC reversal under S.16(2)(c) → increases output tax liability for the period
+2. This triggers interest under S.50(1) at 18% p.a. from the DUE DATE of the original return (not the reversal date)
+3. This may trigger penalty under S.122(1)(ii) for availing ITC not entitled to
+4. If the reversal changes the GSTR-9 figures, it triggers reconciliation differences in GSTR-9C
+5. For income tax: the reversed ITC amount becomes an expense disallowance under S.43B, increasing taxable income
+6. This increases advance tax liability and triggers S.234B/234C interest
+ALWAYS trace this full cascade. Missing step 5-6 is a Rs 2-3 lakh error on a Rs 10 lakh ITC reversal.
+
+### SECTION 43B "ACTUALLY PAID" TRAP
+S.43B allows deduction of GST/PF/ESI/bonus ONLY in the year of ACTUAL PAYMENT.
+- If GST is ACCRUED but not PAID by the return filing date: DISALLOWED under S.43B
+- If employer's PF/ESI contribution is not deposited by the DUE DATE under respective acts: PERMANENTLY disallowed (Checkmate Fiscal Services — SC 2023)
+- This is the SINGLE most common disallowance in Indian tax audits. Always check it.
+
+### SECTION 269SS/269T CASH TRAP
+- S.269SS: No person shall take any LOAN or DEPOSIT in cash exceeding Rs 20,000
+- S.269T: No person shall REPAY any loan/deposit in cash exceeding Rs 20,000
+- Penalty under S.271D/271E: 100% of the transaction amount
+- This applies to PARTNERS' CAPITAL ACCOUNTS too — many CAs miss this
+- Exception: government companies, banking companies, primary agricultural credit societies
+
+### PENALTY IMMUNITY UNDER S.270AA
+Before advising on penalty, ALWAYS check if the client is eligible for immunity under S.270AA:
+- Tax + interest must be paid as per assessment order
+- No appeal should have been filed against the assessment
+- Application must be filed within 1 month of penalty order
+- Available for S.270A penalties (underreporting) but NOT for search/seizure cases
+
+### VIVAD SE VISHWAS / DIRECT TAX DISPUTE RESOLUTION
+Always check if any active dispute resolution scheme is available. Past schemes:
+- Direct Tax Vivad Se Vishwas Act, 2020 (expired)
+- Sabka Vishwas (Legacy Dispute Resolution) Scheme, 2019 (for indirect tax, expired)
+- Check for any new scheme introduced in the latest Finance Act
 
 ---
 
@@ -436,10 +894,10 @@ def extract_company_name(query: str) -> str:
 
 async def process_query(user_query: str, mode: str, matter_context: str = "",
                         conversation_history: list | None = None, statute_context: str = "", firm_context: str = "") -> dict:
-    """Main query processing pipeline."""
-    
+    """Main query processing pipeline with autonomous agent tool access."""
+
     query_types = classify_query(user_query)
-    
+
     # SHORT-CIRCUIT: Casual greetings don't need the full expert pipeline
     casual_patterns = ["hi", "hello", "hey", "good morning", "good evening", "good afternoon", "thanks", "thank you", "ok", "okay"]
     if user_query.strip().lower().rstrip('!.,') in casual_patterns:
@@ -452,7 +910,30 @@ async def process_query(user_query: str, mode: str, matter_context: str = "",
             "internal_strategy": "",
             "query_types": query_types,
         }
-    
+
+    # === AGENT TOOL AUTO-DETECTION & EXECUTION ===
+    # Pre-scan the query and auto-invoke relevant platform tools
+    auto_tool_calls = auto_detect_tools_needed(user_query)
+    tool_results_context = ""
+    tools_executed = []
+
+    if auto_tool_calls:
+        logger.info(f"Agent auto-detected {len(auto_tool_calls)} tool(s) to invoke: {[c['tool'] for c in auto_tool_calls]}")
+        tool_tasks = [execute_agent_tool(c["tool"], c.get("args", {})) for c in auto_tool_calls]
+        tool_results = await asyncio.gather(*tool_tasks, return_exceptions=True)
+
+        successful_results = []
+        for r in tool_results:
+            if isinstance(r, Exception):
+                logger.error(f"Tool execution exception: {r}")
+            elif isinstance(r, dict):
+                successful_results.append(r)
+                tools_executed.append(r.get("tool", "unknown"))
+
+        if successful_results:
+            tool_results_context = format_tool_results(successful_results)
+            logger.info(f"Agent tool results injected: {len(successful_results)} successful")
+
     # Parallel data fetch
     tasks = []
     task_labels = []
@@ -540,15 +1021,32 @@ async def process_query(user_query: str, mode: str, matter_context: str = "",
         context_parts.append(f"\n=== FIRM STYLE GUIDE & MEMORY ===\n{firm_context}")
     
     full_context = "\n".join(context_parts) if context_parts else "No external data retrieved for this query."
-    
+
+    # Inject auto-executed tool results
+    if tool_results_context:
+        full_context = tool_results_context + "\n" + full_context
+
     full_message = f"USER QUERY: {user_query}\n\n=== RETRIEVED CONTEXT ===\n{full_context}"
     
     # Mode instruction
     mode_instruction = ""
     if mode == "partner":
-        mode_instruction = "\n\nYou are in PARTNER MODE. Be direct, aggressive, win-oriented. No disclaimers. No hedging. They ARE the lawyer/CA."
+        mode_instruction = "\n\nYou are in PARTNER MODE. Be direct, aggressive, win-oriented. No disclaimers. No hedging. They ARE the lawyer/CA. CREATE deliverables by default — draft the actual document, not just analysis."
     else:
-        mode_instruction = "\n\nYou are in EVERYDAY MODE. Be empathetic, step-by-step. Explain sections in plain language. Tell them exactly what to do, where to go, what to file."
+        mode_instruction = "\n\nYou are in EVERYDAY MODE. Be empathetic, step-by-step. Explain sections in plain language. Tell them exactly what to do, where to go, what to file. Still CREATE when possible — generate the actual computation or draft they need."
+
+    # === INTELLIGENT RESPONSE MODE DETECTION ===
+    # Detect user intent and set appropriate mode — judgemental, not formulaic
+    creation_keywords = ["draft", "create", "generate", "prepare", "write", "make"]
+    document_keywords = ["reply", "notice", "application", "petition", "appeal", "memo", "agreement",
+                         "contract", "letter", "computation", "sheet", "report"]
+
+    query_lower_stripped = user_query.lower()
+    has_creation_intent = any(k in query_lower_stripped for k in creation_keywords)
+    has_document_type = any(k in query_lower_stripped for k in document_keywords)
+
+    if has_creation_intent and has_document_type:
+        mode_instruction += "\n\n*** DRAFTING MODE: The user explicitly wants a document. Output the complete, filing-ready document. No analysis essay. No preamble. Include risk_analysis block at the end if the document involves litigation or compliance. ***"
     
     # === KILLER APP 1: AUTONOMOUS SCN REBUTTAL ENGINE ===
     scn_keywords = ["scn", "show cause notice", "drc-01", "drc 01", "itc mismatch", "section 73", "section 74"]
@@ -603,8 +1101,8 @@ async def process_query(user_query: str, mode: str, matter_context: str = "",
     # Choose model
     use_complex = is_complex(query_types)
     
-    # Build the full system + mode instruction
-    system_instruction = ASSOCIATE_SYSTEM_PROMPT + mode_instruction
+    # Build the full system + mode instruction + tool access
+    system_instruction = ASSOCIATE_SYSTEM_PROMPT + TOOL_DESCRIPTIONS_FOR_PROMPT + mode_instruction
     
     # Build source labels header
     source_labels = []
@@ -627,323 +1125,218 @@ async def process_query(user_query: str, mode: str, matter_context: str = "",
     user_content = full_message_with_sources[:50000]  # pyre-ignore
     
     # =========================================================
-    # FREE MODEL COUNCIL — HARVEY KILLER ARCHITECTURE
-    # 3 free models fire in parallel, each expert independently
-    # analyses the query. Gemma 4 synthesizes all findings.
-    # Models: Gemma 4 31B (Google AI Studio + Web Search)
-    #         Qwen3.6 Plus (OpenRouter :free — statute expert)
-    #         NVIDIA Nemotron 120B (OpenRouter :free — strategy)
-    #         Groq LLaMA 70B (direct — fast fallback)
+    # DEEP REASONING ARCHITECTURE — Single-model, multi-phase
+    # Phase 1: Structured reasoning chain (think step by step)
+    # Phase 2: Self-verification (check citations, math, dates)
+    # Phase 3: Adversarial check (opposing counsel's arguments)
+    # One strong model >> four weak models averaged together.
     # =========================================================
-    
-    GROQ_KEY_LIVE = os.environ.get("GROQ_KEY", "")
+
     GOOGLE_AI_KEY = os.environ.get("GOOGLE_AI_KEY", "")
-    OPENROUTER_KEY = os.environ.get("OPENROUTER_KEY", "")
-    
-    async def call_gemma4_research(session: aiohttp.ClientSession) -> str:  # pyre-ignore
-        """Gemma 4 31B — Deep web-grounded research via Google AI Studio with Google Search tool."""
-        try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:generateContent?key={GOOGLE_AI_KEY}"
-            payload = {
-                "system_instruction": {"parts": [{"text": system_instruction}]},
-                "contents": [{"role": "user", "parts": [{"text": (
-                    "You are the Gemma 4 Deep Research Node — the PRIMARY intelligence engine. "
-                    "Use Google Search to find the LATEST CBDT circulars, notifications, court judgments, and amendments. "
-                    "CRITICAL: If the user asks to DRAFT a document, ONLY output the draft. "
-                    "If asked for analysis, provide the MOST EXHAUSTIVELY INFORMATIVE analysis possible. "
-                    "Cite every statute with its exact section number and effective date. "
-                    "Go deeper than any competitor — find edge cases, conflicting High Court rulings, and procedural traps.\n\n"
-                    f"{user_content}"
-                )}]}],
-                "tools": [{"googleSearch": {}}],
-                "generationConfig": {"temperature": 0.1, "maxOutputTokens": 8192}
-            }
-            async with session.post(
-                url,
-                headers={"Content-Type": "application/json"},
-                json=payload, timeout=aiohttp.ClientTimeout(total=60)
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
-                    text_parts = [p["text"] for p in parts if "text" in p]
-                    return "\n".join(text_parts)
-                else:
-                    err = await resp.text()
-                    logger.warning(f"Gemma 4 error {resp.status}: {err[:200]}")
-                    return ""
-        except Exception as e:
-            logger.warning(f"Gemma 4 exception: {e}")
-            return ""
+    GROQ_KEY_LIVE = os.environ.get("GROQ_KEY", "")
 
-    async def call_qwen_statute(session: aiohttp.ClientSession) -> str:  # pyre-ignore
-        """Qwen3.6 Plus — Statute interpretation expert via OpenRouter (free)."""
-        try:
-            payload = {
-                "model": "qwen/qwen3.6-plus:free",
-                "messages": [
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": (
-                        "You are a Statute Expert Node — your mandate is EXHAUSTIVE statutory interpretation. "
-                        "For every legal claim, cite the EXACT section, sub-section, proviso, and effective date. "
-                        "Cross-reference between acts (e.g., ITA ↔ CGST ↔ Companies Act). "
-                        "CRITICAL: If the user asks to DRAFT, ONLY output the draft. "
-                        "If asked for analysis, go DEEP — cite notifications, circulars, and amendment history.\n\n"
-                        f"{user_content}"
-                    )}
-                ],
-                "temperature": 0.1,
-                "max_tokens": 4096
-            }
-            async with session.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {OPENROUTER_KEY}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://associate.ai",
-                    "X-Title": "Associate Legal AI"
-                },
-                json=payload, timeout=aiohttp.ClientTimeout(total=90)
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    return data["choices"][0]["message"]["content"]
-                else:
-                    err = await resp.text()
-                    logger.warning(f"Qwen3.6 error {resp.status}: {err[:200]}")
-                    return ""
-        except Exception as e:
-            logger.warning(f"Qwen3.6 exception: {e}")
-            return ""
+    # Build the deep reasoning prompt with structured thinking
+    is_drafting = "drafting" in query_types
 
-    async def call_nemotron_strategy(session: aiohttp.ClientSession) -> str:  # pyre-ignore
-        """NVIDIA Nemotron 120B — Strategic playbook + case law analysis via OpenRouter (free)."""
-        try:
-            payload = {
-                "model": "nvidia/nemotron-3-super-120b-a12b:free",
-                "messages": [
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": (
-                        "You are a Strategic Expert Node. "
-                        "Your mandate: the full strategic playbook. Calculate EXACT penalty exposure, interest liability, and limitation periods. "
-                        "Identify the chess moves — what should the client DO to WIN. "
-                        "CRITICAL: If the user asks to DRAFT, ONLY output the draft. "
-                        "For analysis, provide risk matrices, cost-benefit analysis, and actionable next steps with SPECIFIC deadlines.\n\n"
-                        f"{user_content}"
-                    )}
-                ],
-                "temperature": 0.1,
-                "max_tokens": 4096
-            }
-            async with session.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {OPENROUTER_KEY}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://associate.ai",
-                    "X-Title": "Associate Legal AI"
-                },
-                json=payload, timeout=aiohttp.ClientTimeout(total=90)
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    return data["choices"][0]["message"]["content"]
-                else:
-                    err = await resp.text()
-                    logger.warning(f"Nemotron error {resp.status}: {err[:200]}")
-                    return ""
-        except Exception as e:
-            logger.warning(f"Nemotron exception: {e}")
-            return ""
+    reasoning_chain = f"""<reasoning_protocol>
+BEFORE generating any output, you MUST complete these reasoning phases internally.
 
-    async def call_groq_fallback(session: aiohttp.ClientSession) -> str:  # pyre-ignore
-        """Groq LLaMA3 70B — Blazing fast fallback (direct API, always free)."""
-        try:
-            payload = {
-                "model": "llama-3.3-70b-versatile",
-                "messages": [
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": (
-                        "You are a Fast Expert Node. "
-                        "CRITICAL: If the user asks to DRAFT a document, ONLY output the draft. "
-                        "If asked for analysis, provide the full strategic playbook and case law deep-dive. "
-                        "Be exhaustive.\n\n"
-                        f"{user_content}"
-                    )}
-                ],
-                "temperature": 0.1,
-                "max_tokens": 4096
-            }
-            async with session.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {GROQ_KEY_LIVE}", "Content-Type": "application/json"},
-                json=payload, timeout=aiohttp.ClientTimeout(total=30)
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    return data["choices"][0]["message"]["content"]
-                else:
-                    err = await resp.text()
-                    logger.warning(f"Groq fallback error {resp.status}: {err[:200]}")
-                    return ""
-        except Exception as e:
-            logger.warning(f"Groq fallback exception: {e}")
-            return ""
+PHASE 1 — ISSUE DECOMPOSITION:
+- What EXACT legal/tax question is being asked?
+- What sub-issues are embedded within this question?
+- What jurisdiction and time period apply?
+- What statutes are DIRECTLY applicable (not tangentially related)?
 
-    # === FULL MULTI-MODEL COUNCIL — MAXIMUM QUALITY ===
-    logger.info("🚀 Firing FULL 4-engine intelligence council for maximum response depth")
-    async with aiohttp.ClientSession() as session:
-        results = await asyncio.gather(
-            call_gemma4_research(session),
-            call_qwen_statute(session),
-            call_nemotron_strategy(session),
-            call_groq_fallback(session),
-            return_exceptions=True
-        )
-        gemma_result, qwen_result, nemotron_result, groq_result = results
-    
-    # Handle exceptions from gather
-    if isinstance(gemma_result, Exception):
-        logger.warning(f"Gemma4 gather exception: {gemma_result}")
-        gemma_result = ""
-    if isinstance(qwen_result, Exception):
-        logger.warning(f"Qwen gather exception: {qwen_result}")
-        qwen_result = ""
-    if isinstance(nemotron_result, Exception):
-        logger.warning(f"Nemotron gather exception: {nemotron_result}")
-        nemotron_result = ""
-    if isinstance(groq_result, Exception):
-        logger.warning(f"Groq gather exception: {groq_result}")
-        groq_result = ""
-    
-    # Collect successful responses
-    expert_panels = []
+PHASE 2 — RULE IDENTIFICATION:
+- For each sub-issue, what is the CURRENT operative provision? (Check amendment dates)
+- What are the threshold limits, rates, and deadlines?
+- What provisos or exceptions apply?
+- What CBDT/CBIC circulars or notifications modify the bare provision?
+
+PHASE 3 — APPLICATION TO FACTS:
+- What facts has the user provided?
+- What facts are MISSING that would change the analysis? (State these explicitly)
+- Apply each identified rule to the specific facts.
+- Where facts are ambiguous, analyze BOTH interpretations.
+
+PHASE 4 — ADVERSARIAL STRESS-TEST:
+- What will the Revenue/opposing counsel argue?
+- What is the weakest point in the client's position?
+- What precedent could the other side cite?
+- Pre-emptively rebut these arguments.
+
+PHASE 5 — SELF-VERIFICATION CHECKLIST:
+- [ ] Every section number cited — is it the CURRENT version?
+- [ ] Every case cited — does it actually exist? If uncertain, flag it.
+- [ ] Every calculation — re-check the math with exact figures.
+- [ ] Every deadline — calculate from the specific date, not approximations.
+- [ ] No FEMA/PMLA/BNS references unless facts actually warrant them.
+</reasoning_protocol>
+
+{"OUTPUT: Generate ONLY the requested draft document. No advice, no preamble, no analysis. Just the document." if is_drafting else "OUTPUT: Write a complete professional advisory memo. Start with the answer. Every claim must cite its source. Include risk quantification and a specific action plan with deadlines."}
+
+{user_content}"""
+
+    # === INTELLIGENT MODEL ROUTING ===
+    # Partner mode: Gemini 2.5 Pro (thinking model, best reasoning) → Flash fallback → Groq
+    # Everyday mode: Gemini 2.5 Flash (fast, web-grounded) → Groq fallback
+    # This gives Harvey.ai-level deep reasoning when needed, instant answers otherwise.
+    response_text = ""
     models_used = []
-    if gemma_result and "Error" not in str(gemma_result)[:50]:
-        expert_panels.append(f"Web-Grounded Research Analysis:\n{gemma_result}")
-        models_used.append("research-engine")
-    if qwen_result and "Error" not in str(qwen_result)[:50]:
-        expert_panels.append(f"Statute Expert Analysis:\n{qwen_result}")
-        models_used.append("statute-engine")
-    if nemotron_result and "Error" not in str(nemotron_result)[:50]:
-        expert_panels.append(f"Strategic Analysis:\n{nemotron_result}")
-        models_used.append("strategy-engine")
-    if groq_result and "Error" not in str(groq_result)[:50]:
-        expert_panels.append(f"Fast Analysis:\n{groq_result}")
-        models_used.append("fast-engine")
-    
-    logger.info(f"✅ {len(expert_panels)}/4 models responded: {models_used}")
-    
-    # === MASTER SYNTHESIS — Gemma 4 31B merges all expert findings ===
-    if len(expert_panels) >= 2:
-        if "drafting" in query_types:
-            synthesis_prompt = f"""You are the Document Generator Engine for a multi-model legal AI system.
-The user has requested to DRAFT, GENERATE, or CREATE a document, form, or clause.
 
-USER QUERY: {user_query}
+    OPENAI_KEY_LOCAL = os.environ.get("OPENAI_KEY", "")
+    ANTHROPIC_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
-EXPERT PANEL DRAFTS:
-{chr(10).join(expert_panels)}
+    async with aiohttp.ClientSession() as session:
 
-YOUR ONLY JOB:
-Output the final, perfected draft based on the expert panels.
-DO NOT provide any advice, preamble, introduction, or consulting fluff. DO NOT analyze hidden risks.
-Just output the exact requested document or reporting language.
-"""
-        else:
-            synthesis_prompt = f"""You are the Synthesis Engine for a council of {len(expert_panels)} expert analysis nodes — each has independently analyzed this query from a different forensic angle.
-
-Your output is a FINAL DELIVERABLE DOCUMENT — not a chat message. A senior professional will save this, forward it to colleagues, and use it to make decisions. Write accordingly.
-
-GROUNDING MANDATE:
-- Every legal claim MUST have a source tag: [Source: MongoDB Statute DB — verified], [Source: Google Search], or [From training — verify independently]
-- If an expert panel cited a specific section from the statute database, USE THAT EXACT TEXT
-- Any uncited legal claim is a FAILURE — this is what separates us from ChatGPT wrappers
-
-BEFORE YOU WRITE:
-Internally reason through the following (do not output this reasoning):
-- What is the SINGLE most important thing the user needs to know?
-- What would a 30-year veteran in this field catch that a 5-year practitioner would miss?
-- Where do the expert panels DISAGREE, and which position is defensible and why?
-- What are the 2-3 hidden risks that NONE of the panels fully addressed?
-- What exact numbers, dates, or deadlines can be calculated from the available information?
-
-WRITING STYLE (CRITICAL — READ CAREFULLY):
-- Write in FLOWING PROSE — like a brilliant professional dictating a memo to a client. NOT in rigid sections with headers.
-- START WITH THE ANSWER. 
-- You MAY use **bold** for emphasis. Do NOT use ### headers or rigid labels.
-- The tone should be authoritative and deeply intelligent.
-- GO LONG. If the subject warrants 2000-3000 words, write 2000-3000 words. Depth is the product.
-
-DO NOT:
-- Use ### or ## headers
-- Create "EXECUTIVE SUMMARY" or "GROUND" sections
-- Start any paragraph with "In conclusion" or "To summarize"
-
-USER QUERY: {user_query}
-
-EXPERT PANEL FINDINGS:
-{chr(10).join(expert_panels)}
-
-Now write the single, flowing, deeply intelligent professional analysis:"""
-
-        response_text = ""
-        # Synthesis via Gemma 4 31B (free, high quality)
-        try:
-            synth_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:generateContent?key={GOOGLE_AI_KEY}"
-            synth_payload = {
-                "system_instruction": {"parts": [{"text": "You are the Synthesis Engine for an elite analysis council. If the user asks for a document draft, simply output the EXACT drafted text with ZERO advice or preamble. If the user asks for analysis, write like the best legal minds in the world — in connected, flowing prose, avoiding rigid bullet headers. Be exhaustive in depth for analysis, but hyper-concise for drafts. EVERY legal claim must have a source citation tag."}]},
-                "contents": [{"role": "user", "parts": [{"text": synthesis_prompt[:100000]}]}],
-                "generationConfig": {"temperature": 0.12, "maxOutputTokens": 8192}
-            }
-            async with aiohttp.ClientSession() as session:
+        # === TIER 1: Gemini 2.5 Pro (thinking model — best reasoning available) ===
+        # Only used in partner/deep mode for complex queries. Has extended thinking.
+        if GOOGLE_AI_KEY and mode == "partner" and use_complex:
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={GOOGLE_AI_KEY}"
+                payload = {
+                    "system_instruction": {"parts": [{"text": system_instruction}]},
+                    "contents": [{"role": "user", "parts": [{"text": reasoning_chain[:100000]}]}],
+                    "tools": [{"googleSearch": {}}],
+                    "generationConfig": {"temperature": 0.05, "maxOutputTokens": 16384, "thinkingConfig": {"thinkingBudget": 8192}}
+                }
                 async with session.post(
-                    synth_url,
-                    headers={"Content-Type": "application/json"},
-                    json=synth_payload, timeout=aiohttp.ClientTimeout(total=90)
+                    url, headers={"Content-Type": "application/json"},
+                    json=payload, timeout=aiohttp.ClientTimeout(total=120)
                 ) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                        candidate = data.get("candidates", [{}])[0]
+                        parts = candidate.get("content", {}).get("parts", [])
                         response_text = "\n".join([p["text"] for p in parts if "text" in p])
+                        models_used.append("gemini-2.5-pro-thinking")
+
+                        grounding = candidate.get("groundingMetadata", {})
+                        web_chunks = grounding.get("groundingChunks", [])
+                        if web_chunks:
+                            urls = list(set(c.get("web", {}).get("uri", "") for c in web_chunks if c.get("web", {}).get("uri")))
+                            if urls:
+                                response_text += "\n\n---\n**Live Sources Verified:**\n"
+                                for u in urls[:10]:
+                                    response_text += f"- {u}\n"
                     else:
                         err = await resp.text()
-                        logger.warning(f"Gemma4 synthesis failed ({resp.status}): {err[:200]}. Falling back to Groq.")
-        except Exception as e:
-            logger.warning(f"Gemma4 synthesis exception: {e}. Falling back to Groq.")
-        
-        # Fallback to Groq for synthesis if Gemma 4 fails
-        if not response_text:
-            try:
-                async with aiohttp.ClientSession() as session:
-                    groq_synth = {
-                        "model": "llama-3.3-70b-versatile",
-                        "messages": [
-                            {"role": "system", "content": "You are the Synthesis Engine. Write exhaustive, flowing prose. Every legal claim must have a source citation."},
-                            {"role": "user", "content": synthesis_prompt[:60000]}
-                        ],
-                        "temperature": 0.12,
-                        "max_tokens": 4096
-                    }
-                    async with session.post(
-                        "https://api.groq.com/openai/v1/chat/completions",
-                        headers={"Authorization": f"Bearer {GROQ_KEY_LIVE}", "Content-Type": "application/json"},
-                        json=groq_synth, timeout=aiohttp.ClientTimeout(total=60)
-                    ) as resp:
-                        if resp.status == 200:
-                            data = await resp.json()
-                            response_text = data["choices"][0]["message"]["content"]
+                        logger.warning(f"Gemini 2.5 Pro failed ({resp.status}): {err[:200]}")
             except Exception as e:
-                logger.error(f"Groq synthesis fallback also failed: {e}")
-        
-        if not response_text:
-            # Final fallback: use best individual response
-            response_text = gemma_result or qwen_result or nemotron_result or groq_result or "Error: all models failed."
-    elif len(expert_panels) == 1:
-        response_text = expert_panels[0].split("\n", 2)[-1]  # strip the "### Model:" header
-        models_used = list(models_used)[:1]  # pyre-ignore
-    else:
-        response_text = "All AI models are currently unavailable. Please check your API keys and try again."
+                logger.warning(f"Gemini 2.5 Pro exception: {e}")
+
+        # === TIER 2: Gemini 2.5 Flash (fast, web-grounded — everyday mode or Pro fallback) ===
+        if not response_text and GOOGLE_AI_KEY:
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GOOGLE_AI_KEY}"
+                payload = {
+                    "system_instruction": {"parts": [{"text": system_instruction}]},
+                    "contents": [{"role": "user", "parts": [{"text": reasoning_chain[:100000]}]}],
+                    "tools": [{"googleSearch": {}}],
+                    "generationConfig": {"temperature": 0.08, "maxOutputTokens": 16384}
+                }
+                async with session.post(
+                    url, headers={"Content-Type": "application/json"},
+                    json=payload, timeout=aiohttp.ClientTimeout(total=90)
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        candidate = data.get("candidates", [{}])[0]
+                        parts = candidate.get("content", {}).get("parts", [])
+                        response_text = "\n".join([p["text"] for p in parts if "text" in p])
+                        models_used.append("gemini-2.5-flash")
+
+                        grounding = candidate.get("groundingMetadata", {})
+                        web_chunks = grounding.get("groundingChunks", [])
+                        if web_chunks:
+                            urls = list(set(c.get("web", {}).get("uri", "") for c in web_chunks if c.get("web", {}).get("uri")))
+                            if urls:
+                                response_text += "\n\n---\n**Live Sources Verified:**\n"
+                                for u in urls[:8]:
+                                    response_text += f"- {u}\n"
+                    else:
+                        err = await resp.text()
+                        logger.warning(f"Gemini 2.5 Flash failed ({resp.status}): {err[:200]}")
+            except Exception as e:
+                logger.warning(f"Gemini 2.5 Flash exception: {e}")
+
+        # === TIER 3: Claude Sonnet (Anthropic — strong reasoning alternative) ===
+        if not response_text and ANTHROPIC_KEY:
+            try:
+                payload = {
+                    "model": "claude-sonnet-4-20250514",
+                    "max_tokens": 8192,
+                    "system": system_instruction[:12000],
+                    "messages": [{"role": "user", "content": reasoning_chain[:60000]}],
+                    "temperature": 0.08,
+                }
+                async with session.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": ANTHROPIC_KEY,
+                        "anthropic-version": "2023-06-01",
+                        "Content-Type": "application/json"
+                    },
+                    json=payload, timeout=aiohttp.ClientTimeout(total=90)
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        content_blocks = data.get("content", [])
+                        response_text = "\n".join([b["text"] for b in content_blocks if b.get("type") == "text"])
+                        models_used.append("claude-sonnet")
+            except Exception as e:
+                logger.warning(f"Claude Sonnet fallback error: {e}")
+
+        # === TIER 4: GPT-4o (OpenAI — reliable fallback) ===
+        if not response_text and OPENAI_KEY_LOCAL:
+            try:
+                payload = {
+                    "model": "gpt-4o",
+                    "messages": [
+                        {"role": "system", "content": system_instruction[:12000]},
+                        {"role": "user", "content": reasoning_chain[:30000]}
+                    ],
+                    "temperature": 0.08,
+                    "max_tokens": 8192
+                }
+                async with session.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {OPENAI_KEY_LOCAL}", "Content-Type": "application/json"},
+                    json=payload, timeout=aiohttp.ClientTimeout(total=60)
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        response_text = data["choices"][0]["message"]["content"]
+                        models_used.append("gpt-4o")
+            except Exception as e:
+                logger.warning(f"GPT-4o fallback error: {e}")
+
+        # === TIER 5: Groq LLaMA 70B (always available, fast) ===
+        if not response_text and GROQ_KEY_LIVE:
+            try:
+                payload = {
+                    "model": "llama-3.3-70b-versatile",
+                    "messages": [
+                        {"role": "system", "content": system_instruction[:12000]},
+                        {"role": "user", "content": reasoning_chain[:30000]}
+                    ],
+                    "temperature": 0.08,
+                    "max_tokens": 8192
+                }
+                async with session.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {GROQ_KEY_LIVE}", "Content-Type": "application/json"},
+                    json=payload, timeout=aiohttp.ClientTimeout(total=60)
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        response_text = data["choices"][0]["message"]["content"]
+                        models_used.append("groq-llama-70b")
+            except Exception as e:
+                logger.error(f"Groq reasoning fallback failed: {e}")
+
+    if not response_text:
+        response_text = "All AI engines are currently unavailable. Please check your API keys and try again."
     
     # Extract internal_strategy for Show Reasoning feature, then strip from response
     import re as _re
@@ -961,7 +1354,7 @@ Now write the single, flowing, deeply intelligent professional analysis:"""
     # Parse response into a single flowing section (no fragmented cards)
     sections = [{"title": "Analysis", "content": response_text}]
     
-    model_label = f"Associate Intelligence ({len(models_used)} engines)" if len(models_used) > 1 else (models_used[0] if models_used else "fallback")
+    model_label = f"Associate Deep Reasoning ({', '.join(models_used)})" if models_used else "fallback"
     
     return {
         "response_text": response_text,
@@ -975,11 +1368,12 @@ Now write the single, flowing, deeply intelligent professional analysis:"""
             "statutes_referenced": bool(statute_context),
         },
         "citations_count": len(ik_results),
+        "tools_executed": tools_executed,
     }
 
 
-OPENAI_KEY = os.environ.get("OPENAI_KEY", "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")
-MISTRAL_KEY = os.environ.get("MISTRAL_KEY", "kC3iN01I69I8MMIVvISqZT08pKv8gghX")
+OPENAI_KEY = os.environ.get("OPENAI_KEY", "")
+MISTRAL_KEY = os.environ.get("MISTRAL_KEY", "")
 
 async def call_openai_async(prompt: str, text: str) -> str:
     """Async call to OpenAI gpt-4o-mini for fast chunk extraction."""
@@ -1047,7 +1441,7 @@ async def call_mistral_async(prompt: str, text: str, statute_context: str = "", 
             await asyncio.sleep(2 ** attempt)
     return "Mistral Error: Rate limit or server error persisted."
 
-GROQ_KEY = os.environ.get("GROQ_KEY", "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")
+GROQ_KEY = os.environ.get("GROQ_KEY", "")
 
 async def call_groq_async(prompt: str, text: str) -> str:
     """Async call to Groq Llama-3-70B for blazing fast legislative cross-referencing."""

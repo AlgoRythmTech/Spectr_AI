@@ -28,6 +28,11 @@ from storage_utils import init_storage, put_object, get_object, generate_storage
 from reconciliation_engine import reconcile_gstr2b
 from pii_anonymizer import anonymize_text
 from indian_legal_tools import calculate_limitation, calculate_stamp_duty, analyze_bank_statement, LIMITATION_PERIODS, STAMP_DUTY_RATES
+from practice_tools import (
+    map_section, batch_map_sections, classify_tds_section,
+    check_notice_validity, calculate_deadline_penalty, parse_tally_xml
+)
+from notice_reply_engine import generate_notice_reply, extract_notice_metadata
 from compliance_calendar import get_monthly_deadlines, get_client_specific_deadlines, format_compliance_alert
 from whatsapp_engine import send_text_message, send_compliance_alert, send_bulk_compliance_digest, send_matter_update, send_hearing_reminder
 from tax_audit_engine import build_audit_prompt, parse_audit_clauses, FORM_3CD_CLAUSES
@@ -52,10 +57,10 @@ def get_db():
             _mongo_client = AsyncIOMotorClient(
                 mongo_url,
                 tls=True,
-                tlsAllowInvalidCertificates=True,
-                serverSelectionTimeoutMS=5000,
-                connectTimeoutMS=5000,
-                socketTimeoutMS=5000,
+                tlsCAFile=certifi.where(),
+                serverSelectionTimeoutMS=8000,
+                connectTimeoutMS=8000,
+                socketTimeoutMS=10000,
             )
             _db = _mongo_client[db_name]
             logging.getLogger(__name__).info("MongoDB client initialized (lazy)")
@@ -510,39 +515,64 @@ async def assistant_query(req: QueryRequest, request: Request, authorization: st
 
 
 async def get_statute_context(query: str) -> str:
-    """Search statute DB for relevant sections — DEEP retrieval for grounded responses."""
-    query_lower = query.lower()
-    
-    # Smart legal keyword extraction (section numbers, act names, legal terms)
+    """Search statute DB for relevant sections — 3-pass retrieval for grounded responses.
+
+    Pass 1: Exact section number match (highest priority — user asked for specific section)
+    Pass 2: Act-specific keyword search (user mentions GST/IT/BNS — pull the relevant act's sections)
+    Pass 3: Topic-based semantic search (bail, cheating, ITC, TDS — match by keywords field)
+
+    Returns formatted statute records with clear source attribution.
+    """
     import re as _re
-    # Extract section numbers like "73", "16(2)(c)", "194T", "43B(h)"
+    query_lower = query.lower()
+
+    # === EXTRACTION ===
+    # Section numbers: "73", "16(2)(c)", "194T", "43B(h)", "115BAC", "148A"
     section_nums = _re.findall(r'\b(?:section\s*)?(\d+[A-Za-z]*(?:\([a-z0-9]+\))*)', query_lower)
-    # Extract act-specific terms
-    act_terms = []
-    act_patterns = {
-        "cgst": ["cgst", "gst", "igst"],
-        "income tax": ["income tax", "ita", "it act"],
-        "companies": ["companies act", "company act"],
-        "fema": ["fema", "foreign exchange"],
-        "bns": ["bns", "bharatiya nyaya"],
-        "bnss": ["bnss", "nagarik suraksha"],
-        "arbitration": ["arbitration"],
-        "consumer": ["consumer protection"],
-        "rera": ["rera", "real estate"],
-        "pmla": ["pmla", "money laundering"],
-        "ni act": ["138", "cheque bounce", "negotiable instrument"],
-        "sebi": ["sebi", "insider trading"],
-        "contract": ["contract act", "indian contract"],
-        "limitation": ["limitation act", "limitation period"],
+    section_nums = [s for s in section_nums if not s.isdigit() or int(s) < 1000]  # filter year-like nums
+
+    # Act detection — map user phrases to act name patterns in DB
+    ACT_MAP = {
+        "CGST|GST": ["cgst", "gst", "igst", "sgst", "input tax credit", "itc", "gstr", "e-way bill"],
+        "Income Tax": ["income tax", "ita", "it act", "itr", "tds", "194", "section 80", "deduction", "assessment", "return filing", "rebate", "87a", "115bac", "old regime", "new regime"],
+        "Companies Act": ["companies act", "company act", "roc", "director", "winding up", "oppression", "mismanagement"],
+        "FEMA": ["fema", "foreign exchange", "lrs", "liberalised remittance", "rbi"],
+        "Bharatiya Nyaya Sanhita|BNS": ["bns", "bharatiya nyaya", "ipc", "murder", "theft", "cheating", "fraud", "forgery", "criminal"],
+        "Bharatiya Nagarik Suraksha|BNSS": ["bnss", "nagarik suraksha", "crpc", "bail", "fir", "arrest", "anticipatory bail", "remand", "chargesheet"],
+        "Bharatiya Sakshya|BSA": ["bsa", "sakshya", "evidence", "electronic evidence", "admissibility"],
+        "Arbitration": ["arbitration", "section 11", "section 34", "arbitral award", "conciliation"],
+        "Consumer Protection": ["consumer", "consumer protection", "deficiency in service", "unfair trade"],
+        "RERA": ["rera", "real estate", "builder", "allottee", "possession delay"],
+        "PMLA": ["pmla", "money laundering", "enforcement directorate", "ed attachment"],
+        "Negotiable Instruments": ["138", "cheque bounce", "negotiable instrument", "dishonour"],
+        "SEBI": ["sebi", "insider trading", "listing", "takeover"],
+        "Contract": ["contract act", "indian contract", "breach of contract", "specific performance"],
+        "Limitation": ["limitation act", "limitation period", "time barred", "prescribed period"],
     }
-    for act, patterns in act_patterns.items():
-        for pat in patterns:
-            if pat in query_lower:
-                act_terms.append(act)
-                break
-    
-    keywords = _re.findall(r'\b\w+\b', query_lower)
-    
+
+    matched_acts = []
+    for act_pattern, triggers in ACT_MAP.items():
+        if any(t in query_lower for t in triggers):
+            matched_acts.append(act_pattern)
+
+    # Legal topic keywords (filter noise words)
+    STOP_WORDS = {"what", "which", "when", "where", "will", "would", "could", "should", "does", "about",
+                  "this", "that", "these", "with", "from", "have", "been", "being", "their", "there",
+                  "also", "into", "more", "than", "they", "under", "over", "such", "only", "very",
+                  "just", "like", "some", "much", "many", "most", "other", "after", "before", "between",
+                  "same", "each", "every", "both", "through", "during", "here", "case", "please", "help",
+                  "want", "need", "tell", "explain", "know", "question", "answer", "query", "check"}
+    topic_keywords = [w for w in _re.findall(r'\b[a-z]+\b', query_lower) if len(w) > 3 and w not in STOP_WORDS]
+    # Add multi-word legal terms
+    legal_phrases = _re.findall(r'(?:show cause|input tax|tax credit|cheque bounce|anticipatory bail|'
+                                r'money laundering|foreign exchange|real estate|consumer protection|'
+                                r'insider trading|private defence|criminal breach|tax audit|form 3cd|'
+                                r'clause 44|gstr-2b|gstr-3b|tax slab|new regime|old regime|'
+                                r'penalty.*(?:late|filing|delay)|notice.*(?:valid|din|148|73|74))',
+                                query_lower)
+    topic_keywords.extend(legal_phrases)
+    topic_keywords = list(set(topic_keywords))[:20]
+
     # Demo-Mode Fallback Cache (for when MongoDB Atlas is blocked by IP/Firewall)
     DEMO_RAG_CACHE = {
         "clause 44": "Clause 44 of Form 3CD (Tax Audit Report): Break-up of total expenditure of entities registered or not registered under the GST.\nRequires details of total expenditure incurred during the year, divided into: (a) Expenditure in respect of entities registered under GST (with breakdown of exempt/nil-rated, composition scheme, and other registered entities) and (b) Expenditure relating to entities not registered under GST.\nNote: This is purely a reporting/disclosure requirement. There is no penalty under the Income Tax Act explicitly for incurring expenditure from unregistered vendors, though such expenditure may be scrutinized for genuineness under Section 37 or cash disallowance under Section 40A(3).",
@@ -550,43 +580,89 @@ async def get_statute_context(query: str) -> str:
         "16(4)": "Section 16(4) of the CGST Act, 2017: Time limit for availing Input Tax Credit (ITC).\nA registered person shall not be entitled to take input tax credit in respect of any invoice or debit note for supply of goods or services or both after the thirtieth day of November following the end of financial year to which such invoice or debit note pertains or furnishing of the relevant annual return, whichever is earlier.",
         "73": "Section 73 of the CGST Act, 2017: Determination of tax not paid or short paid or erroneously refunded or input tax credit wrongly availed or utilised for any reason other than fraud or any wilful-misstatement or suppression of facts.\nThe proper officer shall issue notice at least three months prior to the time limit of three years for issuance of order.",
         "74": "Section 74 of the CGST Act, 2017: Determination of tax not paid or short paid or erroneously refunded or ITC wrongly availed or utilised by reason of fraud, or any wilful-misstatement or suppression of facts to evade tax.\nThe proper officer shall issue notice at least six months prior to the time limit of five years for issuance of order.",
+        "115bac": "Section 115BAC of the Income Tax Act, 1961 — New Tax Regime. AY 2026-27 slabs: 0-4L (nil), 4-8L (5%), 8-12L (10%), 12-16L (15%), 16-20L (20%), 20-24L (25%), 24L+ (30%). Standard deduction ₹75,000. Rebate u/s 87A: NIL tax for income up to ₹12,00,000.",
+        "194c": "Section 194C of the Income Tax Act, 1961: TDS on Payments to Contractors. Rate: 1% (individual/HUF), 2% (others). Threshold: single payment >₹30,000 or aggregate >₹1,00,000 in FY.",
+        "194h": "Section 194H of the Income Tax Act, 1961: TDS on Commission or Brokerage. Rate: 5%. Threshold: ₹15,000 per FY.",
+        "194i": "Section 194I of the Income Tax Act, 1961: TDS on Rent. Rate: 2% (plant/machinery/equipment), 10% (land/building/furniture/fittings). Threshold: ₹2,40,000 per FY.",
+        "194t": "Section 194T of the Income Tax Act, 1961: TDS on Partner Payments. NEW w.e.f. 01-04-2025. Covers salary, remuneration, commission, bonus, interest to partners. Rate: 10%. Threshold: ₹20,000 per FY.",
+        "bail": "Bail framework: BNSS S.436 (bailable), S.480 (non-bailable), S.482 (anticipatory bail). Default bail if chargesheet not filed within 60/90 days. Bail is rule, jail is exception — State of Rajasthan v Balchand (1977) 4 SCC 308.",
+        "148": "Section 148/148A of the Income Tax Act: Reassessment provisions. S.148A (inserted by Finance Act 2021) mandates pre-notice inquiry — AO must (a) conduct enquiry with prior approval of specified authority, (b) provide information to assessee, (c) consider reply, (d) pass order deciding whether to issue notice u/s 148. Time limit: 3 years from end of AY (normal), up to 10 years if escaped income ≥₹50 lakhs (with principal chief commissioner approval).",
     }
 
-    # Search statutes collection — DEEP retrieval
+    # === 3-PASS RETRIEVAL ===
     relevant = []
-    search_terms = [kw for kw in keywords if len(kw) > 3][:15]
-    # Add section numbers as high-priority terms
-    search_terms.extend(section_nums[:5])
-    search_terms = list(set(search_terms))
-    
-    if search_terms:
-        regex_pattern = "|".join(search_terms)
-        try:
+    seen_ids = set()  # deduplicate by section_number + act_name
+
+    def _add_unique(docs):
+        for d in docs:
+            key = f"{d.get('act_name', '')}:{d.get('section_number', '')}"
+            if key not in seen_ids:
+                seen_ids.add(key)
+                relevant.append(d)
+
+    try:
+        # PASS 1: Exact section number match (highest priority)
+        if section_nums:
+            # Build act filter if user specified an act
+            act_filter = {}
+            if matched_acts:
+                act_regex = "|".join(matched_acts)
+                act_filter = {"act_name": {"$regex": act_regex, "$options": "i"}}
+
+            section_query = {"section_number": {"$in": section_nums}}
+            if act_filter:
+                section_query.update(act_filter)
+
+            cursor = db.statutes.find(section_query, {"_id": 0}).limit(10)
+            exact_matches = await cursor.to_list(10)
+            _add_unique(exact_matches)
+
+            # If act wasn't specified but section numbers found, still fetch
+            if not exact_matches and not act_filter:
+                cursor = db.statutes.find(
+                    {"section_number": {"$in": section_nums}}, {"_id": 0}
+                ).limit(8)
+                _add_unique(await cursor.to_list(8))
+
+        # PASS 2: Act-specific keyword search
+        if matched_acts and len(relevant) < 10:
+            act_regex = "|".join(matched_acts)
+            keyword_filter = []
+            if topic_keywords:
+                kw_regex = "|".join(topic_keywords[:10])
+                keyword_filter = [
+                    {"$and": [
+                        {"act_name": {"$regex": act_regex, "$options": "i"}},
+                        {"$or": [
+                            {"section_text": {"$regex": kw_regex, "$options": "i"}},
+                            {"section_title": {"$regex": kw_regex, "$options": "i"}},
+                            {"keywords": {"$in": topic_keywords[:10]}},
+                        ]}
+                    ]}
+                ]
+            else:
+                keyword_filter = [{"act_name": {"$regex": act_regex, "$options": "i"}}]
+
+            cursor = db.statutes.find(
+                {"$or": keyword_filter}, {"_id": 0}
+            ).limit(10)
+            _add_unique(await cursor.to_list(10))
+
+        # PASS 3: Topic-based broad search (only if we still have few results)
+        if topic_keywords and len(relevant) < 6:
+            kw_regex = "|".join(topic_keywords[:12])
             cursor = db.statutes.find(
                 {"$or": [
-                    {"section_text": {"$regex": regex_pattern, "$options": "i"}},
-                    {"section_title": {"$regex": regex_pattern, "$options": "i"}},
-                    {"act_name": {"$regex": regex_pattern, "$options": "i"}},
-                    {"keywords": {"$in": search_terms}},
-                    {"section_number": {"$in": section_nums}} if section_nums else {"_placeholder": None}
+                    {"keywords": {"$in": topic_keywords[:12]}},
+                    {"section_title": {"$regex": kw_regex, "$options": "i"}},
                 ]},
                 {"_id": 0}
-            ).limit(15)
-            relevant = await cursor.to_list(15)
-        except Exception as e:
-            logger.warning(f"MongoDB RAG fetch failed (IP block/Timeout). Serving Demo RAG Cache. Error: {e}")
-            # Serve matching demo records
-            for key, text in DEMO_RAG_CACHE.items():
-                if key in query_lower:
-                    relevant.append({
-                        "act_name": "Income Tax / GST Act (Demo Cache)",
-                        "section_number": key.upper(),
-                        "section_title": "Verified Statutory Provision",
-                        "section_text": text
-                    })
-    
-    if not relevant:
-        # Final fallback - if no keywords match but DB is down, try to find any match in the query
+            ).limit(8)
+            _add_unique(await cursor.to_list(8))
+
+    except Exception as e:
+        logger.warning(f"MongoDB RAG fetch failed (IP block/Timeout). Serving Demo RAG Cache. Error: {e}")
+        # Serve matching demo records
         for key, text in DEMO_RAG_CACHE.items():
             if key in query_lower:
                 relevant.append({
@@ -595,19 +671,32 @@ async def get_statute_context(query: str) -> str:
                     "section_title": "Verified Statutory Provision",
                     "section_text": text
                 })
-        
+
+    if not relevant:
+        # Final fallback — serve from demo cache
+        for key, text in DEMO_RAG_CACHE.items():
+            if key in query_lower:
+                relevant.append({
+                    "act_name": "Income Tax / GST Act (Demo Cache)",
+                    "section_number": key.upper(),
+                    "section_title": "Verified Statutory Provision",
+                    "section_text": text
+                })
+
         if not relevant:
             return ""
-    
+
+    # Cap at 12 results to avoid overwhelming the context window
+    relevant = relevant[:12]
+
     context_parts = []
     for s in relevant:
-        # Return FULL section text — no truncation. The models need complete statutory language.
         context_parts.append(
             f"[DB RECORD] Section {s.get('section_number', 'N/A')} of {s.get('act_name', 'N/A')}"
             f" — {s.get('section_title', '')}\n"
             f"{s.get('section_text', '')}"
         )
-    
+
     return "\n\n".join(context_parts)
 
 # ==================== TAX AUDIT TOOLS ====================
@@ -1223,6 +1312,33 @@ async def search_statutes(q: str = Query(""), act: str = Query("")):
     results = await db.statutes.find(query_filter, {"_id": 0}).limit(20).to_list(20)
     return results
 
+# ==================== CASE LAW SEARCH ====================
+
+@api_router.post("/caselaw/find")
+async def api_caselaw_find(request: Request, authorization: str = Header(None)):
+    """Search IndianKanoon for case law matching a scenario description."""
+    await get_current_user(request, authorization)
+    body = await request.json()
+    scenario = body.get("scenario", "")
+    if not scenario:
+        raise HTTPException(status_code=400, detail="'scenario' is required")
+
+    try:
+        results = await search_indiankanoon(scenario, top_k=10)
+        return {"results": results, "count": len(results), "query": scenario}
+    except Exception as e:
+        logger.error(f"Case law search failed: {e}")
+        # Fallback: use AI to formulate a better search and try again
+        try:
+            refined_results = await search_indiankanoon(
+                f"Indian Supreme Court High Court judgment {scenario}", top_k=5
+            )
+            return {"results": refined_results, "count": len(refined_results), "query": scenario}
+        except Exception as e2:
+            logger.error(f"Case law search fallback also failed: {e2}")
+            return {"results": [], "count": 0, "query": scenario, "error": "Case law search temporarily unavailable"}
+
+
 # ==================== TOOLS ROUTES ====================
 
 @api_router.post("/tools/reconcile-gstr2b")
@@ -1351,6 +1467,150 @@ async def api_forensic(req: ForensicRequest, request: Request, authorization: st
     await get_current_user(request, authorization)
     result = analyze_bank_statement(req.transactions)
     return result
+
+# ==================== PRACTICE TOOLS (HIGH-VALUE) ====================
+
+@api_router.post("/tools/section-mapper")
+async def api_section_mapper(request: Request, authorization: str = Header(None)):
+    """Map old criminal law sections to new (IPC→BNS, CrPC→BNSS, IEA→BSA) or vice versa."""
+    try:
+        await get_current_user(request, authorization)
+    except Exception:
+        pass
+    body = await request.json()
+    section = body.get("section", "")
+    direction = body.get("direction", "old_to_new")
+    if not section:
+        raise HTTPException(status_code=400, detail="'section' is required (e.g., '420', '302', '438')")
+    result = map_section(section, direction)
+    return result
+
+@api_router.post("/tools/section-mapper/batch")
+async def api_batch_section_mapper(request: Request, authorization: str = Header(None)):
+    """Map multiple sections at once."""
+    try:
+        await get_current_user(request, authorization)
+    except Exception:
+        pass
+    body = await request.json()
+    sections = body.get("sections", [])
+    direction = body.get("direction", "old_to_new")
+    if not sections:
+        raise HTTPException(status_code=400, detail="'sections' list is required")
+    results = batch_map_sections(sections, direction)
+    return {"mappings": results, "total": len(results)}
+
+@api_router.post("/tools/tds-classifier")
+async def api_tds_classifier(request: Request, authorization: str = Header(None)):
+    """Classify TDS section for a payment description."""
+    try:
+        await get_current_user(request, authorization)
+    except Exception:
+        pass
+    body = await request.json()
+    description = body.get("description", "")
+    amount = float(body.get("amount", 0))
+    payee_type = body.get("payee_type", "company")
+    is_non_filer = body.get("is_non_filer", False)
+    if not description:
+        raise HTTPException(status_code=400, detail="'description' is required (e.g., 'professional fees to CA', 'rent for office')")
+    result = classify_tds_section(description, amount, payee_type, is_non_filer)
+    return result
+
+@api_router.post("/tools/notice-checker")
+async def api_notice_checker(request: Request, authorization: str = Header(None)):
+    """Check validity of a tax/GST notice (limitation, DIN, jurisdiction)."""
+    try:
+        await get_current_user(request, authorization)
+    except Exception:
+        pass
+    body = await request.json()
+    notice_type = body.get("notice_type", "")
+    notice_date = body.get("notice_date", "")
+    if not notice_type or not notice_date:
+        raise HTTPException(status_code=400, detail="'notice_type' and 'notice_date' (YYYY-MM-DD) are required")
+    result = check_notice_validity(
+        notice_type=notice_type,
+        notice_date=notice_date,
+        assessment_year=body.get("assessment_year", ""),
+        financial_year=body.get("financial_year", ""),
+        has_din=body.get("has_din", True),
+        is_fraud_alleged=body.get("is_fraud_alleged", False),
+    )
+    return result
+
+@api_router.post("/tools/penalty-calculator")
+async def api_penalty_calculator(request: Request, authorization: str = Header(None)):
+    """Calculate exact penalty for missing a compliance deadline."""
+    try:
+        await get_current_user(request, authorization)
+    except Exception:
+        pass
+    body = await request.json()
+    deadline_type = body.get("deadline_type", "")
+    due_date = body.get("due_date", "")
+    if not deadline_type or not due_date:
+        raise HTTPException(status_code=400, detail="'deadline_type' and 'due_date' (YYYY-MM-DD) are required")
+    result = calculate_deadline_penalty(
+        deadline_type=deadline_type,
+        due_date=due_date,
+        actual_date=body.get("actual_date", ""),
+        tax_amount=float(body.get("tax_amount", 0)),
+    )
+    return result
+
+@api_router.post("/tools/tally-import")
+async def api_tally_import(
+    request: Request,
+    file: UploadFile = File(...),
+    authorization: str = Header(None),
+):
+    """Import and analyze Tally XML export. Auto-detects Section 40A(3) and 269ST violations."""
+    try:
+        await get_current_user(request, authorization)
+    except Exception:
+        pass
+    content = await file.read()
+    xml_str = content.decode("utf-8", errors="ignore")
+    result = parse_tally_xml(xml_str)
+    return result
+
+@api_router.post("/tools/notice-auto-reply")
+async def api_notice_auto_reply(
+    request: Request,
+    authorization: str = Header(None),
+):
+    """THE KILLER FEATURE: Upload notice text → get auto-drafted legal reply with case law.
+    Reads the notice, extracts type/section/demand, checks validity, drafts 10-point reply."""
+    try:
+        await get_current_user(request, authorization)
+    except Exception:
+        pass
+    body = await request.json()
+    notice_text = body.get("notice_text", "")
+    if not notice_text:
+        raise HTTPException(status_code=400, detail="'notice_text' is required (paste or extract from PDF)")
+    result = await generate_notice_reply(
+        notice_text=notice_text,
+        client_name=body.get("client_name", ""),
+        additional_context=body.get("additional_context", ""),
+    )
+    return result
+
+@api_router.post("/tools/notice-extract")
+async def api_notice_extract(request: Request, authorization: str = Header(None)):
+    """Extract structured metadata from a tax notice (GSTIN, section, demand, dates)."""
+    try:
+        await get_current_user(request, authorization)
+    except Exception:
+        pass
+    body = await request.json()
+    notice_text = body.get("notice_text", "")
+    if not notice_text:
+        raise HTTPException(status_code=400, detail="'notice_text' is required")
+    metadata = extract_notice_metadata(notice_text)
+    return metadata
+
 
 @api_router.post("/tools/playbook/distill")
 async def api_playbook_distill(req: PlaybookRequest, request: Request, authorization: str = Header(None)):
@@ -2296,5 +2556,21 @@ class ReconRequest(BaseModel):
 async def excel_recon_route(req: ReconRequest, request: Request, authorization: str = Header(None)):
     user = await get_current_user(request, authorization)
     return {"status": "success", "message": "Reconciliation complete"}
+# ==================== AGENT TOOL ACCESS METADATA ====================
+
+from ai_engine import AGENT_TOOLS
+
+@api_router.get("/agent/tools")
+async def list_agent_tools():
+    """List all tools available to the AI agent for autonomous execution."""
+    tools = []
+    for name, tool in AGENT_TOOLS.items():
+        tools.append({
+            "name": tool["name"],
+            "description": tool["description"],
+            "parameters": tool["parameters"],
+        })
+    return {"tools": tools, "count": len(tools)}
+
 # ==================== MOUNT ROUTER ====================
 app.include_router(api_router)

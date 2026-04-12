@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
 
@@ -7,15 +7,24 @@ const API = process.env.REACT_APP_BACKEND_URL ? `${process.env.REACT_APP_BACKEND
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Initialize from localStorage synchronously to avoid flash
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dev_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+  const [loading, setLoading] = useState(() => !localStorage.getItem('dev_user'));
   const [firebaseUser, setFirebaseUser] = useState(null);
+  const isDevSession = useRef(!!localStorage.getItem('dev_user'));
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
+        // Real Firebase user — takes priority over dev
         setFirebaseUser(fbUser);
-        // Exchange Firebase token with our backend
+        isDevSession.current = false;
+        localStorage.removeItem('dev_user');
         try {
           const idToken = await fbUser.getIdToken();
           const res = await fetch(`${API}/auth/firebase`, {
@@ -28,14 +37,20 @@ export function AuthProvider({ children }) {
           if (res.ok) {
             const data = await res.json();
             setUser(data);
-            // Store token for subsequent API calls
             localStorage.setItem('auth_token', idToken);
           } else {
-            setUser(null);
+            // Backend rejected but Firebase is valid — use Firebase info
+            setUser({
+              user_id: fbUser.uid,
+              email: fbUser.email,
+              name: fbUser.displayName || '',
+              picture: fbUser.photoURL || '',
+              role: 'associate'
+            });
+            localStorage.setItem('auth_token', idToken);
           }
         } catch (err) {
           console.error('Backend auth error:', err);
-          // Still set basic user info from Firebase
           setUser({
             user_id: fbUser.uid,
             email: fbUser.email,
@@ -45,11 +60,13 @@ export function AuthProvider({ children }) {
           });
           localStorage.setItem('auth_token', await fbUser.getIdToken());
         }
-      } else {
+      } else if (!isDevSession.current) {
+        // No Firebase user AND no dev session — clear everything
         setFirebaseUser(null);
         setUser(null);
         localStorage.removeItem('auth_token');
       }
+      // If isDevSession.current is true, don't touch user state — dev login is active
       setLoading(false);
     });
 
@@ -62,7 +79,7 @@ export function AuthProvider({ children }) {
       return result.user;
     } catch (error) {
       console.error('Google sign-in error:', error);
-      alert('Google Auth Failed: ' + error.message + '\n\nPlease ensure Google Auth is enabled in your Firebase Console for localhost. Use the Dev Bypass button below for now.');
+      alert('Google Auth Failed: ' + error.message + '\n\nUse the Dev Bypass button below for now.');
       throw error;
     }
   }, []);
@@ -75,9 +92,11 @@ export function AuthProvider({ children }) {
       role: "partner",
       picture: ""
     };
+    isDevSession.current = true;
     setUser(mockUser);
-    localStorage.setItem('auth_token', 'dev_mock_token_7128');
     setLoading(false);
+    localStorage.setItem('auth_token', 'dev_mock_token_7128');
+    localStorage.setItem('dev_user', JSON.stringify(mockUser));
   }, []);
 
   const login = (userData) => {
@@ -85,17 +104,18 @@ export function AuthProvider({ children }) {
   };
 
   const logout = useCallback(async () => {
+    isDevSession.current = false;
     try {
       await signOut(auth);
-      localStorage.removeItem('auth_token');
     } catch (error) {
       console.error('Sign-out error:', error);
     }
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('dev_user');
     setUser(null);
     setFirebaseUser(null);
   }, []);
 
-  // Helper to get current auth token for API calls
   const getToken = useCallback(async () => {
     if (firebaseUser) {
       return await firebaseUser.getIdToken();
