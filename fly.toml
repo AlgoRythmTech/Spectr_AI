@@ -1,0 +1,65 @@
+# Fly.io config for spectr.in (multi-tenant mode)
+# Dedicated firm deployments use generated fly-<firm>.toml
+app = "spectr-web"
+primary_region = "bom"  # Mumbai — closest to Indian users
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  FIRM_SHORT = ""           # empty = multi-tenant
+  PORT = "8000"
+  WORKERS = "3"
+  LOG_LEVEL = "info"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 1
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 200
+    soft_limit = 150
+
+[[services]]
+  internal_port = 8000
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [services.concurrency]
+    type = "requests"
+    soft_limit = 150
+    hard_limit = 200
+
+[[vm]]
+  size = "performance-2x"
+  memory = "4gb"
+  cpu_kind = "performance"
+  cpus = 2
+
+[deploy]
+  strategy = "rolling"
+  wait_timeout = "8m"
+
+[metrics]
+  port = 9091
+  path = "/metrics"
+
+[checks.health]
+  grace_period = "90s"
+  interval = "30s"
+  method = "get"
+  path = "/health"
+  port = 8000
+  timeout = "10s"
+  type = "http"

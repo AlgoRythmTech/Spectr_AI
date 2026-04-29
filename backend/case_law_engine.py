@@ -4,7 +4,7 @@ import json
 import logging
 from bs4 import BeautifulSoup
 import urllib.parse
-from indian_kanoon import IndianKanoonScraper
+from indian_kanoon import search_indiankanoon
 
 logger = logging.getLogger(__name__)
 
@@ -47,17 +47,18 @@ Return ONLY a JSON array of 3 strings. Example: ["\"specific performance\" AND \
         # Fallback simple query
         queries = [scenario[:100]]
 
-    # Step 2: Search IndianKanoon using the robust scraper
-    scraper = IndianKanoonScraper()
+    # Step 2: Search IndianKanoon using the API
     all_results = []
-    seen_urls = set()
-    
+    seen_ids = set()
+
     for q in queries:
         try:
-            results = await scraper.search(q, limit=5)
+            results = await search_indiankanoon(q, top_k=5)
             for r in results:
-                if isinstance(r, dict) and r.get('url') not in seen_urls:
-                    seen_urls.add(r.get('url'))
+                if isinstance(r, dict) and r.get('doc_id') not in seen_ids:
+                    seen_ids.add(r.get('doc_id'))
+                    r['url'] = f"https://indiankanoon.org/doc/{r.get('doc_id', '')}/"
+                    r['snippet'] = r.get('headline', '')
                     all_results.append(r)
         except Exception as e:
              logger.error(f"Kanoon search error for query {q}: {e}")

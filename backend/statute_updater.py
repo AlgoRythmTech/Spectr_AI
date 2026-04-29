@@ -14,7 +14,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 logger = logging.getLogger(__name__)
 
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+MONGO_URI = os.getenv("MONGO_URL", os.getenv("MONGO_URI", "mongodb://localhost:27017"))
 client = AsyncIOMotorClient(MONGO_URI)
 db = client["associate_db"]
 updates_col = db["regulatory_updates"]

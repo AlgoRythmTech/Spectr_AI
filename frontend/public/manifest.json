@@ -1,0 +1,19 @@
+{
+  "name": "Spectr — AI Legal & Accounting Platform",
+  "short_name": "Spectr",
+  "description": "India's AI-native research, drafting, and reconciliation platform for Lawyers and CAs.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#FFFFFF",
+  "theme_color": "#0A0A0A",
+  "scope": "/",
+  "lang": "en-IN",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

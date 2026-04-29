@@ -60,7 +60,7 @@ export default function ReconcilerPage() {
           <div style={{ maxWidth: 700, margin: '0 auto' }}>
             <p style={{ fontSize: 14, color: '#6B7280', marginBottom: 28, lineHeight: 1.6 }}>
               Upload your client's <strong>Purchase Register</strong> (from Tally/books) and the <strong>GSTR-2B</strong> (from GST portal).
-              Associate will reconcile using 3-pass matching and identify every ITC mismatch.
+              Spectr will reconcile using 3-pass matching and identify every ITC mismatch.
             </p>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 28 }}>

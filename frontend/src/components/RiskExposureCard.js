@@ -89,11 +89,11 @@ export default function RiskExposureCard({ risk }) {
   const urgencyColor = risk.deadline?.daysRemaining != null
     ? risk.deadline.daysRemaining <= 7 ? '#000'
     : risk.deadline.daysRemaining <= 30 ? '#000'
-    : '#059669'
+    : '#0A0A0A'
     : '#6B7280';
 
   const winColor = risk.winProbability?.percent != null
-    ? risk.winProbability.percent >= 70 ? '#059669'
+    ? risk.winProbability.percent >= 70 ? '#0A0A0A'
     : risk.winProbability.percent >= 40 ? '#000'
     : '#000'
     : '#6B7280';

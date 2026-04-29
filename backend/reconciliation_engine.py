@@ -121,7 +121,7 @@ def reconcile_gstr2b(purchase_bytes: bytes, gstr2b_bytes: bytes) -> dict:
         g2b_total = _find_col(df_g2b.columns, TOTAL_COLS)
 
         if not pr_gstin or not pr_invoice:
-            return {"error": f"Purchase register missing GSTIN or Invoice column. Found columns: {list(df_pr.columns)}"}
+            return {"error": f"Books GST Ledger missing GSTIN or Invoice column. Found columns: {list(df_pr.columns)}"}
         if not g2b_gstin or not g2b_invoice:
             return {"error": f"GSTR-2B missing GSTIN or Invoice column. Found columns: {list(df_g2b.columns)}"}
 
@@ -280,7 +280,7 @@ def reconcile_gstr2b(purchase_bytes: bytes, gstr2b_bytes: bytes) -> dict:
             else:
                 final_unmatched.append(pr_rec)
 
-        # Unmatched GSTR-2B records (in GSTR-2B but NOT in purchase register — potential unclaimed ITC)
+        # Unmatched GSTR-2B records (in GSTR-2B but NOT in Books GST Ledgers — potential unclaimed ITC)
         unmatched_g2b = [g for g in g2b_records if not g["matched"]]
 
         # Calculate ITC at risk

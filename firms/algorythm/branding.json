@@ -1,0 +1,13 @@
+{
+  "app_name": "Spectr — Algorythm",
+  "firm_name": "Algorythm Technologies",
+  "tagline": "Internal AI Legal Intelligence",
+  "primary_color": "#0A0A0A",
+  "accent_color": "#D4AF37",
+  "bg_color": "#FAFAFA",
+  "logo_url": "/static/algorythm-logo.svg",
+  "font_heading": "Plus Jakarta Sans",
+  "font_body": "Inter",
+  "email_from": "ai@algorythm.tech",
+  "email_footer": "— Algorythm Internal AI (Powered by Spectr)"
+}

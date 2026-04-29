@@ -81,3 +81,36 @@ android-sdk/ -e
 # Environment files
 *.env
 *.env.*
+
+# Sensitive credentials (NEVER commit)
+firebase-admin.json
+**/firebase-admin.json
+*service-account*.json
+
+# Process / runtime files
+*.pid
+backend/backend.pid
+backend/supervisor.pid
+backend/*.log
+backend/*.log.*
+backend/server_out.log
+backend/server.log
+backend/supervisor.log
+backend/backend_live.log
+backend/backend_stderr.log
+backend/backend_stdout.log
+backend/supervisor_launch_*.log
+
+# Local SQLite
+backend/spectr.db
+backend/*.db-journal
+
+# Smoke test / benchmark artifacts
+backend/_bench_*.md
+backend/_v*_*.md
+backend/_v*_*.txt
+backend/_smoke_*
+backend/strip_fonts.py
+
+# Worktrees / Claude artifacts
+.claude/worktrees/

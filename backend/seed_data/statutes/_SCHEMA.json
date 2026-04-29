@@ -1,0 +1,40 @@
+{
+  "_description": "SCHEMA REFERENCE — copy this structure for every statute file. Do NOT upload this file itself; the uploader skips files starting with underscore.",
+  "_filename_convention": "One file per act: bns_2023.json, bnss_2023.json, bsa_2023.json, it_act_1961.json, it_act_1961_finance_act_2025.json, it_act_1961_finance_act_2026.json, companies_act_2013.json, cgst_act_2017.json, it_act_2000.json, etc.",
+  "_file_structure": "Each file is a JSON ARRAY of section objects. No wrapping object — just [ {...}, {...}, {...} ].",
+  "_example_array": [
+    {
+      "act_name": "Bharatiya Nyaya Sanhita, 2023 (BNS)",
+      "section_number": "103",
+      "section_title": "Punishment for murder",
+      "section_text": "(1) Whoever commits murder shall be punished with death or imprisonment for life, and shall also be liable to fine. (2) When a group of five or more persons acting in concert commits murder on the ground of race, caste or community, sex, place of birth, language, personal belief or any other ground each member of such group shall be punished with death or with imprisonment for life, and shall also be liable to fine.",
+      "keywords": ["murder", "culpable homicide", "death penalty", "life imprisonment", "mob lynching", "BNS", "103"],
+      "ipc_equivalent": "IPC 302",
+      "chapter": "Chapter VI — Of Offences Affecting The Human Body",
+      "effective_from": "2024-07-01",
+      "amendment_note": "",
+      "source_url": "https://www.indiacode.nic.in/handle/..."
+    },
+    {
+      "act_name": "Income Tax Act, 1961",
+      "section_number": "194T",
+      "section_title": "Payments to partners of firms",
+      "section_text": "Any person, being a firm, responsible for paying any sum in the nature of salary, remuneration, commission, bonus or interest to a partner of the firm shall, at the time of credit of such sum to the account of the partner (including the capital account) or at the time of payment thereof in cash or by issue of a cheque or draft or by any other mode, whichever is earlier, deduct income-tax thereon at the rate of ten per cent.",
+      "keywords": ["TDS", "partner payment", "firm", "salary", "remuneration", "commission", "bonus", "interest", "10%", "194T", "Income Tax", "IT Act"],
+      "chapter": "XVII-B — Deduction at source",
+      "effective_from": "2025-04-01",
+      "amendment_note": "Inserted by Finance (No. 2) Act, 2024. Effective AY 2026-27.",
+      "source_url": ""
+    }
+  ],
+  "_required_fields": ["act_name", "section_number", "section_text", "keywords"],
+  "_recommended_fields": ["section_title", "chapter", "effective_from", "amendment_note"],
+  "_field_notes": {
+    "act_name": "Full formal name. Must match ACT_MAP triggers in server.py so the retrieval classifier can find it. Examples: 'Bharatiya Nyaya Sanhita, 2023 (BNS)', 'Bharatiya Nagarik Suraksha Sanhita, 2023 (BNSS)', 'Bharatiya Sakshya Adhiniyam, 2023 (BSA)', 'Income Tax Act, 1961', 'Central Goods and Services Tax Act, 2017', 'Information Technology Act, 2000', 'Companies Act, 2013'.",
+    "section_number": "Keep the user-facing form — '420', '194T', '16(4)', '148A', '43B(h)', '115BAC'. The retriever regex-extracts exactly these tokens.",
+    "section_text": "The bare-act text verbatim. Preserve sub-clause numbering like (1), (a), (i). No markdown, no HTML. Plain text.",
+    "keywords": "5-15 lowercase tokens. Include section number, act abbreviation, topical terms a user would type ('bail', 'itc', 'cheating'). This is the main search vector.",
+    "effective_from": "ISO date YYYY-MM-DD. Critical for 'is this the 2026 version' checks.",
+    "amendment_note": "Free text. Used by the AI to flag amendments in responses. Include 'Inserted by Finance Act 2025', 'Substituted by BNS for IPC 302', etc."
+  }
+}

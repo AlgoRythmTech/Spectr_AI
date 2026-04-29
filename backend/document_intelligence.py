@@ -128,7 +128,7 @@ async def query_documents(matter_id: str, query: str, top_k: int = 3) -> dict:
     # 5. Synthesize answer with LLM
     context_text = "\n\n---\n\n".join([f"SOURCE ({c['file_id']}):\n{c['text']}" for c in relevant_chunks])
     
-    system_prompt = """You are the Associate Bulk Document Intelligence Engine.
+    system_prompt = """You are the Spectr Bulk Document Intelligence Engine.
 Your job is to answer the user's question based ONLY on the provided document excerpts.
 If the excerpts do not contain the answer, say "The provided documents do not contain information to answer this."
 Always cite the source document ID when stating a fact."""

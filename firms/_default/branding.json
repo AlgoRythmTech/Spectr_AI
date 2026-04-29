@@ -1,0 +1,18 @@
+{
+  "app_name": "Spectr",
+  "firm_name": "Spectr AI",
+  "tagline": "AI Legal Intelligence for India",
+  "primary_color": "#0A0A0A",
+  "accent_color": "#D4AF37",
+  "bg_color": "#FAFAFA",
+  "logo_url": "/static/spectr-logo.svg",
+  "favicon_url": "/static/favicon.ico",
+  "font_heading": "Plus Jakarta Sans",
+  "font_body": "Inter",
+  "font_serif": "Instrument Serif",
+  "email_from": "spectr.r@agentmail.to",
+  "email_footer": "— Spectr | AI Legal & Accounting Platform",
+  "support_url": "https://spectr.in/support",
+  "terms_url": "https://spectr.in/terms",
+  "privacy_url": "https://spectr.in/privacy"
+}

@@ -1,0 +1,15 @@
+# https://www.robotstxt.org/robotstxt.html
+# Spectr — allow crawlers on marketing pages, block private app paths.
+
+User-agent: *
+Allow: /$
+Allow: /legal/
+Allow: /terms
+Disallow: /app/
+Disallow: /login
+Disallow: /admin/
+
+# Spec recommends blocking API from indexing
+Disallow: /api/
+
+Sitemap: https://spectrco.in/sitemap.xml

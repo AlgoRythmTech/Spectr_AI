@@ -971,3 +971,181 @@ def parse_tally_xml(xml_content: str) -> dict:
             f"{len(cash_receipt_violations)} Section 269ST violations."
         ),
     }
+
+
+# =====================================================================
+# 6. ZOHO BOOKS IMPORTER
+# Parse Zoho Books CSV/XLSX exports and extract structured financial data
+# =====================================================================
+
+def parse_zoho_export(file_bytes: bytes, filename: str) -> dict:
+    """
+    Parse Zoho Books CSV/XLSX export and extract structured ledger data.
+    Supports: Journal Report, General Ledger, Day Book, Trial Balance,
+    Purchase Register, Sales Register exports from Zoho Books.
+    Auto-detects S.40A(3) and S.269ST violations same as Tally.
+    """
+    import pandas as pd
+    import io
+
+    try:
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+        if ext == "csv":
+            df = pd.read_csv(io.BytesIO(file_bytes), encoding="utf-8", on_bad_lines="skip")
+        elif ext in ("xlsx", "xls"):
+            df = pd.read_excel(io.BytesIO(file_bytes))
+        else:
+            return {"error": f"Unsupported file type: .{ext}. Upload a CSV or XLSX export from Zoho Books."}
+    except Exception as e:
+        return {"error": f"Failed to read file: {str(e)}"}
+
+    if df.empty:
+        return {"error": "File is empty or could not be parsed."}
+
+    cols_lower = {c: c.lower().strip() for c in df.columns}
+    df.rename(columns={c: cols_lower[c] for c in df.columns}, inplace=True)
+
+    # --- Auto-detect Zoho column names ---
+    DATE_COLS = ["date", "transaction date", "journal date", "invoice date", "created date"]
+    TYPE_COLS = ["transaction type", "type", "voucher type", "entry type"]
+    PARTY_COLS = ["contact name", "vendor name", "customer name", "party name", "name", "account name"]
+    AMOUNT_COLS = ["amount", "total", "grand total", "debit", "net amount", "invoice amount"]
+    DEBIT_COLS = ["debit", "debit amount", "dr"]
+    CREDIT_COLS = ["credit", "credit amount", "cr"]
+    REF_COLS = ["reference number", "reference#", "journal number", "invoice number", "invoice#", "bill number", "bill#"]
+    NARRATION_COLS = ["notes", "description", "narration", "memo", "remarks"]
+    GSTIN_COLS = ["gstin", "gst number", "gstin/uin", "gst identification number"]
+    PAYMENT_MODE_COLS = ["payment mode", "payment method", "mode of payment"]
+
+    def _find(candidates):
+        for c in candidates:
+            if c in df.columns:
+                return c
+        return None
+
+    date_col = _find(DATE_COLS)
+    type_col = _find(TYPE_COLS)
+    party_col = _find(PARTY_COLS)
+    amount_col = _find(AMOUNT_COLS)
+    debit_col = _find(DEBIT_COLS)
+    credit_col = _find(CREDIT_COLS)
+    ref_col = _find(REF_COLS)
+    narration_col = _find(NARRATION_COLS)
+    gstin_col = _find(GSTIN_COLS)
+    payment_mode_col = _find(PAYMENT_MODE_COLS)
+
+    # Build transactions
+    transactions = []
+    total_debit = 0.0
+    total_credit = 0.0
+
+    for _, row in df.iterrows():
+        txn = {}
+        txn["date"] = str(row.get(date_col, "")) if date_col else ""
+        txn["voucher_type"] = str(row.get(type_col, "")) if type_col else ""
+        txn["party"] = str(row.get(party_col, "")) if party_col else ""
+        txn["reference"] = str(row.get(ref_col, "")) if ref_col else ""
+        txn["narration"] = str(row.get(narration_col, "")) if narration_col else ""
+        txn["gstin"] = str(row.get(gstin_col, "")) if gstin_col else ""
+        txn["payment_mode"] = str(row.get(payment_mode_col, "")) if payment_mode_col else ""
+
+        # Amount handling: prefer debit/credit columns, fallback to amount
+        if debit_col and credit_col:
+            dr = _safe_float(row.get(debit_col, 0))
+            cr = _safe_float(row.get(credit_col, 0))
+            txn["amount"] = dr if dr > 0 else cr
+            txn["is_debit"] = dr > 0
+            total_debit += dr
+            total_credit += cr
+        elif amount_col:
+            amt = _safe_float(row.get(amount_col, 0))
+            txn["amount"] = abs(amt)
+            txn["is_debit"] = amt < 0
+            if amt < 0:
+                total_debit += abs(amt)
+            else:
+                total_credit += amt
+        else:
+            txn["amount"] = 0
+            txn["is_debit"] = False
+
+        if txn["amount"] > 0 or txn["party"]:
+            transactions.append(txn)
+
+    # Auto-detect S.40A(3) cash payment violations (>Rs 10,000)
+    cash_violations = []
+    for t in transactions:
+        is_cash = (
+            "cash" in t.get("payment_mode", "").lower()
+            or "cash" in t.get("party", "").lower()
+            or "cash" in t.get("voucher_type", "").lower()
+        )
+        is_payment = t.get("is_debit", False) or "payment" in t.get("voucher_type", "").lower()
+        if is_cash and is_payment and t["amount"] > 10000:
+            cash_violations.append({
+                "date": t["date"],
+                "amount": t["amount"],
+                "party": t["party"],
+                "section": "S.40A(3)",
+                "violation": "Section 40A(3) IT Act — cash payment > Rs 10,000. Expenditure will be disallowed.",
+            })
+
+    # Auto-detect S.269ST cash receipt violations (>Rs 2 lakh)
+    cash_receipt_violations = []
+    for t in transactions:
+        is_cash = (
+            "cash" in t.get("payment_mode", "").lower()
+            or "cash" in t.get("party", "").lower()
+        )
+        is_receipt = not t.get("is_debit", False) or "receipt" in t.get("voucher_type", "").lower()
+        if is_cash and is_receipt and t["amount"] > 200000:
+            cash_receipt_violations.append({
+                "date": t["date"],
+                "amount": t["amount"],
+                "party": t["party"],
+                "section": "S.269ST",
+                "violation": "Section 269ST IT Act — cash receipt > Rs 2 lakh. Penalty u/s 271DA equal to the amount.",
+            })
+
+    # Build violation_details for frontend (unified format with Tally)
+    violation_details = []
+    for v in cash_violations:
+        violation_details.append(v)
+    for v in cash_receipt_violations:
+        violation_details.append(v)
+
+    return {
+        "source": "zoho_books",
+        "total_vouchers": len(transactions),
+        "total_amount": round(total_debit + total_credit, 2),
+        "total_debit": round(total_debit, 2),
+        "total_credit": round(total_credit, 2),
+        "violations_40a3": len(cash_violations),
+        "violations_269st": len(cash_receipt_violations),
+        "violation_details": violation_details,
+        "transactions": [
+            {"date": t["date"], "voucher_type": t["voucher_type"], "party": t["party"], "amount": t["amount"]}
+            for t in transactions[:500]
+        ],
+        "columns_detected": {
+            "date": date_col, "type": type_col, "party": party_col,
+            "amount": amount_col, "debit": debit_col, "credit": credit_col,
+            "gstin": gstin_col, "payment_mode": payment_mode_col,
+        },
+        "summary": (
+            f"Parsed {len(transactions)} transactions from Zoho Books export. "
+            f"Total debits: Rs {total_debit:,.0f}, Total credits: Rs {total_credit:,.0f}. "
+            f"Auto-detected {len(cash_violations)} Section 40A(3) violations and "
+            f"{len(cash_receipt_violations)} Section 269ST violations."
+        ),
+    }
+
+
+def _safe_float(val) -> float:
+    """Safely convert a value to float, handling Indian number formats."""
+    if val is None or (isinstance(val, float) and str(val) == 'nan'):
+        return 0.0
+    try:
+        return float(str(val).replace(",", "").strip())
+    except (ValueError, TypeError):
+        return 0.0

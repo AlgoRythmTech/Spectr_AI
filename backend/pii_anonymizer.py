@@ -49,7 +49,10 @@ def anonymize_text(text: str, redact_level: str = "standard") -> dict:
     redactions = []
     anonymized = text
     
-    standard_types = {'Aadhaar', 'PAN', 'Phone', 'Email', 'GSTIN'}
+    # Standard tier = the PII fields promised in T&C Clause 8.2:
+    # Aadhaar, PAN, GSTIN, mobile/phone, email, IFSC, CIN.
+    # Changing this set is a T&C-level change — requires re-publishing.
+    standard_types = {'Aadhaar', 'PAN', 'Phone', 'Email', 'GSTIN', 'IFSC', 'CIN'}
     
     for pattern, replacement, pii_type in PII_PATTERNS:
         if replacement is None:

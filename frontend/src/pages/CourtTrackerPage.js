@@ -20,7 +20,10 @@ export default function CourtTrackerPage() {
   const fetchCases = async () => {
     setLoading(true);
     try {
-      const token = await getToken();
+      let token = '';
+
+      try { token = await getToken() || token; } catch { /**/ }
+      try { token = (await getToken()) || token; } catch { /**/ }
       const res = await fetch(`${API}/court/upcoming`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -40,7 +43,10 @@ export default function CourtTrackerPage() {
     
     setAdding(true);
     try {
-      const token = await getToken();
+      let token = '';
+
+      try { token = await getToken() || token; } catch { /**/ }
+      try { token = (await getToken()) || token; } catch { /**/ }
       const res = await fetch(`${API}/court/track`, {
         method: 'POST',
         headers: {
@@ -61,7 +67,10 @@ export default function CourtTrackerPage() {
 
   const handleRemove = async (trackId) => {
     try {
-      const token = await getToken();
+      let token = '';
+
+      try { token = await getToken() || token; } catch { /**/ }
+      try { token = (await getToken()) || token; } catch { /**/ }
       await fetch(`${API}/court/track/${trackId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
@@ -75,7 +84,10 @@ export default function CourtTrackerPage() {
   const handleRefresh = async (trackId) => {
     setRefreshing(trackId);
     try {
-      const token = await getToken();
+      let token = '';
+
+      try { token = await getToken() || token; } catch { /**/ }
+      try { token = (await getToken()) || token; } catch { /**/ }
       const res = await fetch(`${API}/court/refresh/${trackId}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }

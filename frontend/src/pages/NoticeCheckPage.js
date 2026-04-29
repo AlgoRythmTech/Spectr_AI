@@ -64,7 +64,7 @@ export default function NoticeCheckPage() {
       <div style={{ marginBottom: 32 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
           <div style={{ width: 40, height: 40, background: '#ECFDF5', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <ShieldCheck style={{ width: 20, height: 20, color: '#059669' }} />
+            <ShieldCheck style={{ width: 20, height: 20, color: '#0A0A0A' }} />
           </div>
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 700, color: '#0A0A0A', margin: 0, letterSpacing: '-0.02em' }}>Notice Validity Check</h1>

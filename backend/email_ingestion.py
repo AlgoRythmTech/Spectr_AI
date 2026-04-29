@@ -16,13 +16,13 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 logger = logging.getLogger(__name__)
 
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+MONGO_URI = os.getenv("MONGO_URL", os.getenv("MONGO_URI", "mongodb://localhost:27017"))
 client = AsyncIOMotorClient(MONGO_URI)
 db = client["associate_db"]
 
 # Mapping of unique ingest addresses to matter IDs
-# Format: {matter_id}@ingest.associate.ai -> routes to that matter's vault
-INGEST_DOMAIN = os.getenv("INGEST_DOMAIN", "ingest.associate.ai")
+# Format: {matter_id}@ingest.spectr.ai -> routes to that matter's vault
+INGEST_DOMAIN = os.getenv("INGEST_DOMAIN", "ingest.spectr.ai")
 
 async def process_inbound_email(raw_email: str, recipient_address: str) -> dict:
     """
@@ -115,56 +115,6 @@ async def process_inbound_email(raw_email: str, recipient_address: str) -> dict:
     }
 
 
-async def process_whatsapp_document(
-    phone_number: str,
-    media_url: str,
-    media_type: str,
-    filename: str,
-    matter_id: str
-) -> dict:
-    """
-    Process a document received via WhatsApp.
-    Downloads the media and saves to vault.
-    """
-    import aiohttp
-    
-    file_id = f"wa_{uuid.uuid4().hex[:12]}"
-    file_ext = os.path.splitext(filename)[1].lower() if filename else ".pdf"
-    
-    upload_dir = os.path.join("uploads", "whatsapp_ingest")
-    os.makedirs(upload_dir, exist_ok=True)
-    file_path = os.path.join(upload_dir, f"{file_id}{file_ext}")
-    
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(media_url) as resp:
-                if resp.status == 200:
-                    content = await resp.read()
-                    with open(file_path, "wb") as f:
-                        f.write(content)
-                    
-                    doc_record = {
-                        "doc_id": file_id,
-                        "filename": filename or f"WhatsApp_Doc_{file_id}{file_ext}",
-                        "extension": file_ext.replace(".", ""),
-                        "size": len(content),
-                        "matter_id": matter_id,
-                        "source": "whatsapp",
-                        "wa_phone": phone_number,
-                        "local_path": file_path,
-                        "created_at": datetime.now(timezone.utc).isoformat(),
-                        "doc_type": _classify_doc_type(filename or ""),
-                    }
-                    
-                    await db.vault_documents.insert_one(doc_record)
-                    doc_record.pop("_id", None)
-                    
-                    return {"status": "success", "document": doc_record}
-    except Exception as e:
-        logger.error(f"WhatsApp document download error: {e}")
-        return {"status": "error", "error": str(e)}
-    
-    return {"status": "error", "error": "Failed to download media"}
 
 
 async def generate_ingest_address(matter_id: str, user_id: str) -> str:

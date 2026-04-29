@@ -1,0 +1,33 @@
+{
+  "mode": "dedicated",
+  "firm_name": "Algorythm Technologies",
+  "limits": {
+    "max_queries_per_day": 100000,
+    "max_files_upload": 20,
+    "max_file_size_mb": 500,
+    "max_deep_research_per_day": 1000,
+    "max_drive_uploads_per_day": 10000,
+    "sandbox_minutes_per_day": 9999,
+    "concurrent_sandboxes": 10
+  },
+  "features": {
+    "advisory": true,
+    "code_executor": true,
+    "deep_research": true,
+    "drive_upload": true,
+    "sheets_live_edit": true,
+    "docs_live_edit": true,
+    "vault": true,
+    "playbooks": true,
+    "trust_layer": true,
+    "multi_tenant_signup": false,
+    "billing": false,
+    "admin_dashboard": true,
+    "usage_analytics": true
+  },
+  "models": {
+    "default_advisory": "claude-opus-4-7",
+    "default_code": "claude-sonnet-4-6",
+    "fallback_chain": ["claude-opus-4-7", "claude-sonnet-4-6", "gpt-4o"]
+  }
+}

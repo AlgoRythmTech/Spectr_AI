@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
 
@@ -6,68 +6,73 @@ const API = process.env.REACT_APP_BACKEND_URL ? `${process.env.REACT_APP_BACKEND
 
 const AuthContext = createContext(null);
 
+/**
+ * Spectr auth — Google Sign-In only, no dev bypass.
+ *
+ * Flow:
+ *   1. User clicks "Continue with Google" → Firebase popup
+ *   2. On success, we exchange Firebase's ID token with our backend
+ *      (`POST /api/auth/firebase`) for a session-backed user record
+ *   3. The user object (with name, email, picture, user_id) becomes the
+ *      source of truth for TOSAcceptanceGate's audit log
+ *   4. Logging out clears Firebase + our auth_token localStorage
+ */
 export function AuthProvider({ children }) {
-  // Initialize from localStorage synchronously to avoid flash
-  const [user, setUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem('dev_user');
-      return saved ? JSON.parse(saved) : null;
-    } catch { return null; }
-  });
-  const [loading, setLoading] = useState(() => !localStorage.getItem('dev_user'));
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [firebaseUser, setFirebaseUser] = useState(null);
-  const isDevSession = useRef(!!localStorage.getItem('dev_user'));
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
-        // Real Firebase user — takes priority over dev
         setFirebaseUser(fbUser);
-        isDevSession.current = false;
-        localStorage.removeItem('dev_user');
-        try {
-          const idToken = await fbUser.getIdToken();
-          const res = await fetch(`${API}/auth/firebase`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${idToken}`
-            },
-          });
-          if (res.ok) {
-            const data = await res.json();
-            setUser(data);
+
+        // Hydrate the user immediately from the Firebase identity so the
+        // app unblocks in < 50ms. We do NOT await the backend exchange —
+        // that runs in the background and merges extra fields (role) when
+        // it returns. This eliminates the multi-second "Loading Spectr..."
+        // pause that used to happen right after Google sign-in.
+        setUser({
+          user_id: fbUser.uid,
+          email: fbUser.email,
+          name: fbUser.displayName || '',
+          picture: fbUser.photoURL || '',
+          role: 'associate',
+        });
+        setLoading(false);
+
+        // Backend exchange in the background — fire-and-forget
+        (async () => {
+          try {
+            const idToken = await fbUser.getIdToken();
             localStorage.setItem('auth_token', idToken);
-          } else {
-            // Backend rejected but Firebase is valid — use Firebase info
-            setUser({
-              user_id: fbUser.uid,
-              email: fbUser.email,
-              name: fbUser.displayName || '',
-              picture: fbUser.photoURL || '',
-              role: 'associate'
+            const res = await fetch(`${API}/auth/firebase`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`,
+              },
             });
-            localStorage.setItem('auth_token', idToken);
+            if (res.ok) {
+              const data = await res.json();
+              // Merge in backend-only fields (role, user_id mapping) without
+              // disrupting the already-hydrated identity
+              setUser(prev => prev ? {
+                ...prev,
+                user_id: data.user_id || prev.user_id,
+                role: data.role || prev.role,
+              } : prev);
+            }
+          } catch (err) {
+            console.warn('Backend auth exchange failed (non-blocking):', err?.message);
           }
-        } catch (err) {
-          console.error('Backend auth error:', err);
-          setUser({
-            user_id: fbUser.uid,
-            email: fbUser.email,
-            name: fbUser.displayName || '',
-            picture: fbUser.photoURL || '',
-            role: 'associate'
-          });
-          localStorage.setItem('auth_token', await fbUser.getIdToken());
-        }
-      } else if (!isDevSession.current) {
-        // No Firebase user AND no dev session — clear everything
+        })();
+      } else {
         setFirebaseUser(null);
         setUser(null);
         localStorage.removeItem('auth_token');
+        setLoading(false);
       }
-      // If isDevSession.current is true, don't touch user state — dev login is active
-      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -79,39 +84,32 @@ export function AuthProvider({ children }) {
       return result.user;
     } catch (error) {
       console.error('Google sign-in error:', error);
-      alert('Google Auth Failed: ' + error.message + '\n\nUse the Dev Bypass button below for now.');
+      // Surface a helpful message. Common causes:
+      //   - auth/popup-blocked: browser popup blocker
+      //   - auth/popup-closed-by-user: user dismissed the popup
+      //   - auth/unauthorized-domain: Firebase console needs localhost added
+      let msg = 'Google sign-in failed.';
+      if (error?.code === 'auth/popup-blocked') {
+        msg = 'Your browser blocked the Google sign-in popup. Please allow popups for this site and try again.';
+      } else if (error?.code === 'auth/popup-closed-by-user' || error?.code === 'auth/cancelled-popup-request') {
+        msg = 'Sign-in was cancelled.';
+      } else if (error?.code === 'auth/unauthorized-domain') {
+        msg = 'This domain isn\'t authorised for Google sign-in. Please contact support.';
+      } else if (error?.message) {
+        msg = error.message;
+      }
+      alert(msg);
       throw error;
     }
   }, []);
 
-  const devLogin = useCallback(() => {
-    const mockUser = {
-      user_id: "dev_partner_001",
-      email: "partner@algorythm.tech",
-      name: "Dev Partner",
-      role: "partner",
-      picture: ""
-    };
-    isDevSession.current = true;
-    setUser(mockUser);
-    setLoading(false);
-    localStorage.setItem('auth_token', 'dev_mock_token_7128');
-    localStorage.setItem('dev_user', JSON.stringify(mockUser));
-  }, []);
-
-  const login = (userData) => {
-    setUser(userData);
-  };
-
   const logout = useCallback(async () => {
-    isDevSession.current = false;
     try {
       await signOut(auth);
     } catch (error) {
       console.error('Sign-out error:', error);
     }
     localStorage.removeItem('auth_token');
-    localStorage.removeItem('dev_user');
     setUser(null);
     setFirebaseUser(null);
   }, []);
@@ -123,8 +121,11 @@ export function AuthProvider({ children }) {
     return localStorage.getItem('auth_token');
   }, [firebaseUser]);
 
+  // `login` kept for components that directly set a user (rare — mostly legacy).
+  const login = (userData) => setUser(userData);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, loginWithGoogle, devLogin, getToken }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, loginWithGoogle, getToken }}>
       {children}
     </AuthContext.Provider>
   );

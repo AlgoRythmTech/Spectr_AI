@@ -4,6 +4,7 @@ Reads massive legal/financial documents and produces forensic-grade analysis.
 Uses structured reasoning to find what junior CAs and lawyers miss.
 """
 import os
+import re
 import logging
 import asyncio
 import aiohttp
@@ -112,7 +113,7 @@ Answer the user's specific query by forensically cross-referencing all provided 
 - If documents contain contradictory answers, present BOTH and explain which is more reliable and why."""
 
 
-@vault_router.post("/analyze")
+@vault_router.post("/stream-analyze")
 async def analyze_vault_stream(req: Request):
     """Deep document analysis with streaming response."""
     data = await req.json()
@@ -162,7 +163,6 @@ async def analyze_vault_stream(req: Request):
                             full_text = "\n".join([p.get("text", "") for p in parts if "text" in p])
                             if full_text:
                                 # Strip internal strategy tags
-                                import re
                                 full_text = re.sub(r'<internal_strategy>.*?</internal_strategy>', '', full_text, flags=re.DOTALL).strip()
                                 # Stream in chunks for smooth UI
                                 chunk_size = 200

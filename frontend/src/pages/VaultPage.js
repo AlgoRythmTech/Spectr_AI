@@ -4,8 +4,19 @@ import {
   AlertTriangle, Loader2, ArrowLeft, Download, Copy, Check
 } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import ResponseCard from '../components/ResponseCard';
 
 const SKILLS = [
+  {
+    id: 'summarize',
+    icon: FileText,
+    title: 'Executive Summary',
+    desc: 'Partner-ready summary of the entire document — even 1000+ pages. Key numbers, parties, material clauses, deadlines, risks, bottom line.',
+    color: '#0A0A0A',
+    bg: '#F7F7F8',
+    border: 'rgba(0,0,0,0.06)',
+  },
   {
     id: 'night_before',
     icon: Briefcase,
@@ -36,50 +47,96 @@ const SKILLS = [
 ];
 
 export default function VaultPage() {
+  const { getToken } = useAuth();
   const [files, setFiles] = useState([]);
   const [analysisState, setAnalysisState] = useState('idle');
   const [streamedText, setStreamedText] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [activeSkill, setActiveSkill] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [customQuery, setCustomQuery] = useState('');
+
+  // Helper: get auth token (falls back to dev token so auth middleware accepts it)
+  const authToken = async () => {
+    let token = '';
+
+    try { token = await getToken() || token; } catch { /**/ }
+    try { token = (await getToken()) || token; } catch { /**/ }
+    return token;
+  };
 
   const handleFileUpload = async (e) => {
     const uploadedFiles = Array.from(e.target.files);
+    const token = await authToken();
     for (const file of uploadedFiles) {
+      let uploaded = false;
       try {
-        // Upload to backend vault
+        // Upload to backend vault. CRITICAL: do NOT set Content-Type manually —
+        // for multipart the browser must set it with the boundary. Using the
+        // native fetch API here because axios v1 inherits its default
+        // `Content-Type: application/json` onto FormData requests, which breaks
+        // server-side multipart parsing (was causing silent 422s in demo).
         const formData = new FormData();
         formData.append('file', file);
-        const res = await api.post('/vault/upload', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
+        const baseURL = (api.defaults.baseURL || '/api').replace('://localhost', '://127.0.0.1');
+        const res = await fetch(`${baseURL}/vault/upload`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }, // NO Content-Type — browser sets it
+          credentials: 'include',
+          body: formData,
         });
-        const doc = res.data;
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '');
+          console.error('[Vault] upload failed', res.status, errText.slice(0, 300));
+          throw new Error(`Upload ${res.status}: ${errText.slice(0, 200)}`);
+        }
+        const doc = await res.json();
+        console.log('[Vault] upload ok', doc);
         setFiles(prev => [...prev, {
-          id: doc.document_id || Math.random().toString(36).substr(2, 9),
+          id: doc.document_id || doc.doc_id || Math.random().toString(36).substr(2, 9),
           name: file.name,
           size: (file.size / 1024).toFixed(1) + ' KB',
-          doc_id: doc.document_id,
+          doc_id: doc.document_id || doc.doc_id,
         }]);
+        uploaded = true;
       } catch (err) {
-        // Fallback: read file client-side if upload fails
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const text = typeof ev.target.result === 'string' ? ev.target.result.substring(0, 50000) : '';
-          setFiles(prev => [...prev, {
-            id: Math.random().toString(36).substr(2, 9),
-            name: file.name,
-            size: (file.size / 1024).toFixed(1) + ' KB',
-            content: text,
-          }]);
-        };
-        reader.readAsText(file);
+        console.error('[Vault] upload threw', err);
+      }
+      if (!uploaded) {
+        // Fallback: read file client-side so the user can still analyse it inline.
+        // IMPORTANT: only fall back for plain-text formats. For PDF/DOCX the
+        // "text" read is raw binary bytes — if we sent that as a query the
+        // assistant would echo back `%PDF-1.4 /Type /Catalog …`, which is
+        // exactly the bug we hit on 22-Apr-2026.
+        const lower = (file.name || '').toLowerCase();
+        const isBinary = /\.(pdf|docx|doc|xlsx|xls|pptx|ppt)$/i.test(lower);
+        if (isBinary) {
+          alert(
+            `Upload to the Vault failed for "${file.name}" — usually this means your session expired.\n\n` +
+            `Please: open DevTools (F12) → Application → Clear site data → sign in again, then retry.\n\n` +
+            `(PDF/DOCX cannot be analysed without a server-side upload; we will not send raw binary as a query.)`
+          );
+        } else {
+          try {
+            const text = await file.text();
+            setFiles(prev => [...prev, {
+              id: Math.random().toString(36).substr(2, 9),
+              name: file.name,
+              size: (file.size / 1024).toFixed(1) + ' KB',
+              content: (text || '').substring(0, 50000),
+            }]);
+          } catch (readErr) {
+            console.error('[Vault] client-side read failed', readErr);
+            alert(`Could not upload "${file.name}". Check your connection and retry.`);
+          }
+        }
       }
     }
   };
 
   const removeFile = (id) => setFiles(files.filter(f => f.id !== id));
 
-  const triggerSkill = async (skillType) => {
+  const triggerSkill = async (skillType, customPromptOverride = '') => {
     if (files.length === 0) {
       alert("Please upload documents to the Vault first.");
       return;
@@ -88,37 +145,52 @@ export default function VaultPage() {
     setActiveSkill(skillType);
     setAnalysisState('analyzing');
     setStreamedText('');
-    setStatusMessage('Initializing deep analysis...');
+    setStatusMessage(skillType === 'custom_query'
+      ? 'Searching across documents…'
+      : skillType === 'summarize'
+        ? 'Summarising document — this may take 1-2 minutes for large files…'
+        : 'Initializing deep analysis...');
 
     try {
+      const token = await authToken();
       // Use backend document IDs if available, otherwise use client-side content
       const hasDocIds = files.some(f => f.doc_id);
       let response;
 
       if (hasDocIds) {
-        // Use proper vault analyze endpoint with document_id
+        // Use proper vault analyze endpoint with document_id (map-reduce pipeline)
         const docId = files.find(f => f.doc_id)?.doc_id;
-        response = await fetch(`${api.defaults.baseURL}/vault/analyze`, {
+        const promptForBackend = customPromptOverride
+          || (files.length > 1 ? `Analyze all ${files.length} documents together.` : '');
+        response = await fetch(`${(api.defaults.baseURL || '/api').replace('://localhost', '://127.0.0.1')}/vault/analyze`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
           credentials: 'include',
           body: JSON.stringify({
             document_id: docId,
             analysis_type: skillType,
-            custom_prompt: files.length > 1 ? `Analyze all ${files.length} documents together.` : '',
+            custom_prompt: promptForBackend,
           })
         });
       } else {
         // Fallback: send content directly via the assistant query endpoint
         const combinedContent = files.map(f => `--- ${f.name} ---\n${f.content || ''}`).join('\n\n');
         const skillPrompts = {
+          summarize: `Produce a partner-ready executive summary of these documents. Include: TL;DR, key numbers, parties & roles, material clauses, deadlines, risks, bottom-line recommendation.\n\n${combinedContent}`,
           night_before: `Perform a "Night Before Hearing" digest on these documents. Give me: BLUF (Bottom Line Up Front), fatal errors in opponent's case, precedent matrix, 3-minute oral argument script, and anticipated bench questions.\n\n${combinedContent}`,
           timeline: `Extract a complete chronological timeline from these documents. Include every date, event, filing, and deadline mentioned.\n\n${combinedContent}`,
           contradictions: `Hunt for contradictions, discrepancies, conflicting dates, inconsistent amounts, and any inconsistencies across these documents.\n\n${combinedContent}`,
+          custom_query: `${customPromptOverride || 'Analyze these documents.'}\n\nDocuments:\n${combinedContent}`,
         };
-        response = await fetch(`${api.defaults.baseURL}/assistant/query`, {
+        response = await fetch(`${(api.defaults.baseURL || '/api').replace('://localhost', '://127.0.0.1')}/assistant/query`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
           credentials: 'include',
           body: JSON.stringify({
             query: skillPrompts[skillType] || `Analyze: ${combinedContent}`,
@@ -186,13 +258,26 @@ export default function VaultPage() {
   const renderMarkdown = (text) => {
     if (!text) return null;
     const lines = text.split('\n');
+    // Render **bold** as a React element instead of raw HTML injection —
+    // eliminates the XSS attack surface from uploaded document text. Any
+    // untrusted text that ends up in the analysis response is now rendered
+    // as plain text with <strong> inserted only for markdown-bold runs.
+    const renderBoldSegments = (text) => {
+      const parts = String(text).split(/(\*\*[^*]+\*\*)/g);
+      return parts.map((part, idx) => {
+        if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+          return <strong key={idx}>{part.slice(2, -2)}</strong>;
+        }
+        return part;
+      });
+    };
     return lines.map((line, i) => {
       if (line.startsWith('## ')) return <h2 key={i} style={{ fontSize: 18, fontWeight: 700, color: '#0A0A0A', margin: '20px 0 8px' }}>{line.replace('## ', '')}</h2>;
       if (line.startsWith('### ')) return <h3 key={i} style={{ fontSize: 15, fontWeight: 700, color: '#374151', margin: '16px 0 6px' }}>{line.replace('### ', '')}</h3>;
       if (line.startsWith('> ')) return <blockquote key={i} style={{ borderLeft: '3px solid #0A0A0A', paddingLeft: 14, margin: '8px 0', color: '#4B5563', fontSize: 13, fontStyle: 'italic' }}>{line.replace('> ', '')}</blockquote>;
       if (line.startsWith('- ')) return <li key={i} style={{ fontSize: 13, color: '#374151', lineHeight: 1.7, marginLeft: 16 }}>{line.replace('- ', '')}</li>;
       if (line.trim() === '') return <div key={i} style={{ height: 8 }} />;
-      return <p key={i} style={{ fontSize: 13.5, color: '#374151', lineHeight: 1.75, margin: '4px 0' }} dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />;
+      return <p key={i} style={{ fontSize: 13.5, color: '#374151', lineHeight: 1.75, margin: '4px 0' }}>{renderBoldSegments(line)}</p>;
     });
   };
 
@@ -253,10 +338,55 @@ export default function VaultPage() {
         {analysisState === 'idle' && (
           <div style={{ flex: 1, padding: 40, overflow: 'auto' }}>
             <div style={{ maxWidth: 700, margin: '0 auto' }}>
-              <h2 style={{ fontSize: 22, fontWeight: 700, color: '#0A0A0A', marginBottom: 6, letterSpacing: '-0.02em' }}>Select Analysis Mode</h2>
-              <p style={{ fontSize: 14, color: '#6B7280', marginBottom: 32, lineHeight: 1.5 }}>
-                Choose a forensic workflow to execute across all {files.length} uploaded document{files.length !== 1 ? 's' : ''}.
+              <h2 style={{ fontSize: 22, fontWeight: 700, color: '#0A0A0A', marginBottom: 6, letterSpacing: '-0.02em' }}>
+                {files.length === 0 ? 'Upload documents to begin' : `Analyse ${files.length} document${files.length !== 1 ? 's' : ''}`}
+              </h2>
+              <p style={{ fontSize: 14, color: '#6B7280', marginBottom: 24, lineHeight: 1.5 }}>
+                Ask anything, or pick a forensic workflow below.
               </p>
+
+              {/* ─── Ask Anything input ─── */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '4px 4px 4px 16px',
+                background: 'rgba(255,255,255,0.85)',
+                border: '1px solid rgba(0,0,0,0.08)',
+                borderRadius: 14,
+                marginBottom: 28,
+                boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
+                opacity: files.length === 0 ? 0.5 : 1,
+              }}>
+                <Search style={{ width: 15, height: 15, color: '#999', flexShrink: 0 }} />
+                <input
+                  value={customQuery}
+                  onChange={e => setCustomQuery(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && customQuery.trim() && files.length > 0) {
+                      triggerSkill('custom_query', customQuery.trim());
+                    }
+                  }}
+                  placeholder="Find anything — 'what's the limitation deadline?', 'summarise Section 7', 'find every mention of ₹2 crore'…"
+                  disabled={files.length === 0}
+                  style={{
+                    flex: 1, border: 'none', outline: 'none', background: 'transparent',
+                    fontSize: 14, color: '#0A0A0A', padding: '12px 4px', fontFamily: 'inherit',
+                  }}
+                />
+                <button
+                  onClick={() => customQuery.trim() && triggerSkill('custom_query', customQuery.trim())}
+                  disabled={!customQuery.trim() || files.length === 0}
+                  style={{
+                    padding: '8px 16px',
+                    background: customQuery.trim() && files.length > 0 ? '#0A0A0A' : 'rgba(0,0,0,0.1)',
+                    color: customQuery.trim() && files.length > 0 ? '#fff' : '#999',
+                    border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                    cursor: customQuery.trim() && files.length > 0 ? 'pointer' : 'default',
+                    fontFamily: 'inherit', transition: 'all 0.15s',
+                  }}
+                >
+                  Ask
+                </button>
+              </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {SKILLS.map(skill => (
@@ -325,10 +455,15 @@ export default function VaultPage() {
               )}
             </div>
 
-            {/* Output */}
+            {/* Output — uses ResponseCard for consistent typography with Chat */}
             <div style={{ flex: 1, overflow: 'auto', padding: '24px 40px' }}>
-              <div style={{ maxWidth: 800, margin: '0 auto' }}>
-                {renderMarkdown(streamedText)}
+              <div style={{ maxWidth: 820, margin: '0 auto' }}>
+                <ResponseCard
+                  responseText={streamedText}
+                  sections={[]}
+                  sources={[]}
+                  citations={[]}
+                />
               </div>
             </div>
           </div>

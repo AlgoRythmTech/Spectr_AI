@@ -1,0 +1,62 @@
+{
+  "mode": "multi_tenant",
+  "tiers": {
+    "free": {
+      "max_queries_per_day": 20,
+      "max_files_upload": 2,
+      "max_file_size_mb": 10,
+      "max_deep_research_per_day": 2,
+      "max_drive_uploads_per_day": 5,
+      "llm_models_allowed": ["quick"],
+      "sandbox_minutes_per_day": 10
+    },
+    "solo": {
+      "max_queries_per_day": 200,
+      "max_files_upload": 5,
+      "max_file_size_mb": 50,
+      "max_deep_research_per_day": 15,
+      "max_drive_uploads_per_day": 50,
+      "llm_models_allowed": ["quick", "deep"],
+      "sandbox_minutes_per_day": 60
+    },
+    "practice": {
+      "max_queries_per_day": 1000,
+      "max_files_upload": 10,
+      "max_file_size_mb": 100,
+      "max_deep_research_per_day": 50,
+      "max_drive_uploads_per_day": 200,
+      "llm_models_allowed": ["quick", "deep", "opus"],
+      "sandbox_minutes_per_day": 240
+    },
+    "midfirm": {
+      "max_queries_per_day": 5000,
+      "max_files_upload": 10,
+      "max_file_size_mb": 200,
+      "max_deep_research_per_day": 200,
+      "max_drive_uploads_per_day": 500,
+      "llm_models_allowed": ["quick", "deep", "opus"],
+      "sandbox_minutes_per_day": 480
+    }
+  },
+  "limits": {
+    "max_queries_per_day": 50,
+    "max_files_upload": 3,
+    "max_file_size_mb": 25,
+    "max_deep_research_per_day": 5,
+    "max_drive_uploads_per_day": 10,
+    "sandbox_minutes_per_day": 30
+  },
+  "features": {
+    "advisory": true,
+    "code_executor": true,
+    "deep_research": true,
+    "drive_upload": true,
+    "sheets_live_edit": true,
+    "docs_live_edit": true,
+    "vault": true,
+    "playbooks": true,
+    "trust_layer": true,
+    "multi_tenant_signup": true,
+    "billing": true
+  }
+}

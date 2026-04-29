@@ -14,10 +14,34 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 logger = logging.getLogger(__name__)
 
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-client = AsyncIOMotorClient(MONGO_URI)
-db = client["associate_db"]
-tracked_cases_col = db["tracked_cases"]
+# Lazy-init MongoDB client — avoid module-import-time network calls that can hang
+_client = None
+_db = None
+_tracked_cases_col = None
+
+
+def _get_col():
+    """Return the tracked_cases collection lazily. Uses the same connection string as server."""
+    global _client, _db, _tracked_cases_col
+    if _tracked_cases_col is None:
+        mongo_uri = os.getenv("MONGO_URL", os.getenv("MONGO_URI", "mongodb://localhost:27017"))
+        _client = AsyncIOMotorClient(
+            mongo_uri,
+            serverSelectionTimeoutMS=5000,
+            connectTimeoutMS=5000,
+            socketTimeoutMS=10000,
+        )
+        _db = _client["associate_db"]
+        _tracked_cases_col = _db["tracked_cases"]
+    return _tracked_cases_col
+
+
+# Backward-compat shim — existing code uses `tracked_cases_col` as module attribute
+class _LazyColl:
+    def __getattr__(self, name):
+        return getattr(_get_col(), name)
+
+tracked_cases_col = _LazyColl()
 
 async def search_ecourts(case_number: str = None, party_name: str = None, court: str = "supreme_court") -> list:
     """

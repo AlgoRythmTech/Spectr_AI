@@ -1,8 +1,8 @@
 """
-Unified Compliance Calendar Engine — Associate's gravitational center.
+Unified Compliance Calendar Engine — Spectr's gravitational center.
 Covers: GST deadlines, Income Tax deadlines, ROC/MCA deadlines,
 TDS/TCS deadlines, SEBI disclosures, FEMA, Court hearings (from eCourts).
-Every deadline auto-populated per client/matter, pushed via WhatsApp + Email.
+Every deadline auto-populated per client/matter, pushed via Email notifications.
 """
 import logging
 from datetime import datetime, date, timedelta
@@ -287,7 +287,7 @@ def _last_day(year: int, month: int, day: int) -> date:
 
 
 def format_compliance_alert(deadline: dict) -> str:
-    """Format a deadline as a WhatsApp-ready alert message."""
+    """Format a deadline as an alert message for email notifications."""
     urgency_emoji = {"CRITICAL": "🚨", "WARNING": "⚠️", "INFO": "📅"}.get(deadline.get("urgency", "INFO"), "📅")
     days = deadline.get("days_until", "?")
     days_text = f"{days} day{'s' if days != 1 else ''}" if isinstance(days, int) else "Today"

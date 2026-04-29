@@ -64,7 +64,7 @@ export default function CaseLawPage() {
           <div className="mb-8">
             <h2 className="text-[24px] font-bold text-[#111827] mb-3 tracking-[-0.02em]">Find Relevant Precedents</h2>
             <p className="text-[14px] text-[#6B7280] max-w-[600px] leading-relaxed">
-              Describe your factual scenario or legal issue. Associate formulates search queries, scans IndianKanoon, and ranks the most relevant judgments with targeted holdings.
+              Describe your factual scenario or legal issue. Spectr formulates search queries, scans IndianKanoon, and ranks the most relevant judgments with targeted holdings.
             </p>
           </div>
 
@@ -133,7 +133,10 @@ export default function CaseLawPage() {
                     </p>
 
                     <p className="text-[13px] text-[#4B5563] leading-relaxed line-clamp-3">
-                      <span dangerouslySetInnerHTML={{ __html: result.snippet }} />
+                      {/* SECURITY: strip all HTML from IK snippet before rendering.
+                          IK's own <b> highlighting is acceptable to lose — the safety
+                          of not injecting arbitrary third-party HTML outweighs it. */}
+                      <span>{(result.snippet || '').replace(/<[^>]*>/g, '')}</span>
                     </p>
                   </div>
 

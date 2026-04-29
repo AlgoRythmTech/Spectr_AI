@@ -44,7 +44,7 @@ export default function TallyImportPage() {
           </div>
         </div>
         <p style={{ fontSize: 13.5, color: '#6B7280', maxWidth: 640, lineHeight: 1.6 }}>
-          Upload a Tally Prime XML export. Associate parses all vouchers, auto-detects S.40A(3) cash payment violations
+          Upload a Tally Prime XML export. Spectr parses all vouchers, auto-detects S.40A(3) cash payment violations
           (&gt;Rs 10,000) and S.269ST violations (&gt;Rs 2 lakh), and generates a clean transaction summary.
         </p>
       </div>

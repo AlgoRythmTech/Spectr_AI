@@ -5,7 +5,7 @@ import {
   ChevronRight, Search, Filter, RefreshCw
 } from 'lucide-react';
 
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+const API_BASE = process.env.REACT_APP_API_URL || '/api';
 
 const RISK_COLORS = {
   HIGH: { bg: 'bg-[#FAFAFA]', text: 'text-[#333]', border: 'border-[#E5E5E5]', dot: 'bg-[#000]' },

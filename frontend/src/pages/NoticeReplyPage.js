@@ -85,7 +85,7 @@ export default function NoticeReplyPage() {
           </div>
         </div>
         <p style={{ fontSize: 13.5, color: '#6B7280', maxWidth: 680, lineHeight: 1.6 }}>
-          Paste or upload a GST/Income Tax notice. Associate auto-extracts the notice type, demand amount, sections invoked,
+          Paste or upload a GST/Income Tax notice. Spectr auto-extracts the notice type, demand amount, sections invoked,
           checks validity (limitation, DIN compliance), and drafts a formal 10-point legal reply with case law citations.
         </p>
       </div>

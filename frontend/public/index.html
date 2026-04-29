@@ -2,17 +2,104 @@
 <html lang="en">
     <head>
         <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#000000" />
-        <meta name="description" content="Associate — AI-powered legal and tax intelligence for Indian CAs and Lawyers." />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+        <meta name="theme-color" content="#0A0A0A" />
+        <meta name="color-scheme" content="light" />
+
+        <!-- Primary SEO -->
+        <title>Spectr — AI Legal &amp; Accounting Platform for India</title>
+        <meta name="description" content="Spectr is the AI-native research, drafting, and reconciliation platform for Indian lawyers and CAs. Fifty million judgments indexed. Every GSTR-2B reconciled. Every citation verified. Built for India, by India." />
+        <meta name="keywords" content="Indian legal AI, CA software, GSTR-2B reconciliation, TDS classifier, IndianKanoon AI, legal research India, law firm software, accounting AI India, Spectr" />
+        <meta name="author" content="Spectr &amp; Co." />
+        <meta name="application-name" content="Spectr" />
+        <link rel="canonical" href="https://spectrco.in/" />
+
+        <!-- Open Graph (Facebook, LinkedIn, WhatsApp) -->
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Spectr" />
+        <meta property="og:title" content="Spectr — AI Legal &amp; Accounting Platform for India" />
+        <meta property="og:description" content="Fifty million Indian judgments indexed. Every return reconciled. Every citation verified. Law &amp; Accounting, unified." />
+        <meta property="og:url" content="https://spectrco.in/" />
+        <meta property="og:locale" content="en_IN" />
+
+        <!-- Twitter / X card -->
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Spectr — AI Legal &amp; Accounting Platform for India" />
+        <meta name="twitter:description" content="Fifty million Indian judgments indexed. Every return reconciled. Every citation verified." />
+
+        <!-- PWA / icons -->
+        <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+        <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+        <link rel="apple-touch-icon" sizes="180x180" href="%PUBLIC_URL%/apple-touch-icon.png" />
+
+        <!-- Fonts — preconnect + display: swap so text never FOIT-blocks the paint -->
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100..900&family=Plus+Jakarta+Sans:wght@200..800&family=EB+Garamond:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet" />
-        <title>Associate — AI Legal Intelligence for India</title>
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=EB+Garamond:ital,wght@0,400..800;1,400..800&family=Instrument+Serif:ital@0;1&family=Outfit:wght@100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap" rel="stylesheet" />
+
+        <style>
+          @keyframes spin { to { transform: rotate(360deg); } }
+
+          /* Pre-hydration splash — shows while JS is downloading + parsing, so users
+             never see a white flash. Removed automatically when React mounts. */
+          #spectr-boot-splash {
+            position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+            background: #FFFFFF; z-index: 99998;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            transition: opacity 0.25s ease-out;
+          }
+          #spectr-boot-splash .wm {
+            font-size: 36px; font-weight: 500; letter-spacing: -0.05em;
+            background: linear-gradient(to bottom right, #0A0A0A 40%, rgba(10,10,10,0.45));
+            -webkit-background-clip: text; background-clip: text;
+            -webkit-text-fill-color: transparent; color: transparent;
+            animation: spectr-wm-breathe 2.4s ease-in-out infinite;
+          }
+          @keyframes spectr-wm-breathe {
+            0%, 100% { opacity: 0.6; }
+            50%      { opacity: 1.0; }
+          }
+        </style>
+
+        <!-- Suppress harmless DataCloneError from PerformanceServerTiming in some dev tools -->
         <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
     </head>
     <body>
-        <noscript>You need to enable JavaScript to run this app.</noscript>
+        <noscript>
+            <div style="padding:40px; text-align:center; font-family:Inter,system-ui,sans-serif; color:#0A0A0A;">
+                <h1 style="font-weight:500; letter-spacing:-0.03em;">JavaScript is required to run Spectr.</h1>
+                <p style="color:#6B7280;">Please enable JavaScript in your browser settings and reload this page.</p>
+            </div>
+        </noscript>
+
+        <!-- Boot splash: shown before React hydrates; the React mount will replace this -->
+        <div id="spectr-boot-splash"><span class="wm">Spectr</span></div>
+
         <div id="root"></div>
+
+        <script>
+          // Once React has rendered something into #root, fade the boot splash out.
+          // If we don't see a child within 8s we leave the splash visible (something
+          // went wrong) so the user sees branded loading, not a blank page.
+          (function() {
+            var removed = false;
+            function removeSplash() {
+              if (removed) return;
+              var s = document.getElementById('spectr-boot-splash');
+              if (!s) { removed = true; return; }
+              s.style.opacity = '0';
+              setTimeout(function() { if (s && s.parentNode) s.parentNode.removeChild(s); removed = true; }, 260);
+            }
+            var check = setInterval(function() {
+              var root = document.getElementById('root');
+              if (root && root.childNodes.length > 0) {
+                clearInterval(check);
+                removeSplash();
+              }
+            }, 60);
+            // Safety cap — stop polling after 10s regardless
+            setTimeout(function() { clearInterval(check); }, 10000);
+          })();
+        </script>
     </body>
 </html>

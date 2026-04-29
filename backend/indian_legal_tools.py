@@ -41,6 +41,56 @@ LIMITATION_PERIODS = {
     "nclt_ibc_section7": {"period_years": 3, "section": "Section 7 IBC", "from": "date of default"},
     "nclt_ibc_section9": {"period_years": 3, "section": "Section 9 IBC", "from": "date of default"},
     "nclat_appeal": {"period_days": 30, "section": "Section 61 IBC", "from": "date of NCLT order + 15 days condonable"},
+
+    # Additional Civil Suits
+    "breach_of_contract": {"period_years": 3, "section": "Article 55", "from": "date of breach"},
+    "accounts_stated": {"period_years": 3, "section": "Article 64", "from": "date of acknowledgment"},
+    "malicious_prosecution": {"period_years": 1, "section": "Article 71", "from": "date of acquittal or discharge"},
+    "fraud": {"period_years": 3, "section": "Article 59", "from": "when fraud first known"},
+    "mortgage_foreclosure": {"period_years": 30, "section": "Article 61(a)", "from": "when money becomes due"},
+    "recovery_possession_lease": {"period_years": 12, "section": "Article 66", "from": "expiry of lease"},
+    "mesne_profits": {"period_years": 3, "section": "Article 51", "from": "when profits accrue"},
+    "injunction_breach": {"period_years": 3, "section": "Article 7", "from": "date of breach of injunction"},
+    "declaration_suit": {"period_years": 3, "section": "Article 58", "from": "when right to sue accrues"},
+    "trust_property_recovery": {"period_years": 12, "section": "Article 92", "from": "date of breach of trust"},
+    "restitution_conjugal_rights": {"period_years": 1, "section": "Article 26", "from": "date of withdrawal from society"},
+    "recovery_from_agent": {"period_years": 3, "section": "Article 16", "from": "when account is rendered"},
+    "possession_easement": {"period_years": 12, "section": "Article 112", "from": "when dispossessed"},
+    "contribution_between_sureties": {"period_years": 3, "section": "Article 43", "from": "when principal is paid"},
+    "legacy_suit": {"period_years": 12, "section": "Article 109", "from": "when legacy becomes payable"},
+
+    # Consumer
+    "consumer_complaint_district": {"period_years": 2, "section": "Section 69 CP Act 2019", "from": "when cause of action arises"},
+    "consumer_appeal_state": {"period_days": 30, "section": "Section 41 CP Act 2019", "from": "date of District Commission order"},
+    "consumer_appeal_national": {"period_days": 30, "section": "Section 51 CP Act 2019", "from": "date of State Commission order"},
+
+    # Labour & Employment
+    "industrial_dispute_reference": {"period_years": 3, "section": "Section 10 ID Act", "from": "date of discharge/dismissal"},
+    "workmen_compensation": {"period_years": 2, "section": "Section 10 WC Act", "from": "date of accident"},
+    "epf_claim": {"period_years": 3, "section": "Section 7A EPF Act", "from": "date when contribution due"},
+
+    # RERA
+    "rera_complaint": {"period_years": 1, "section": "Section 31 RERA Act", "from": "date of possession promise or defect"},
+    "rera_appeal_appat": {"period_days": 60, "section": "Section 44 RERA Act", "from": "date of RERA Authority order"},
+
+    # RTI
+    "rti_first_appeal": {"period_days": 30, "section": "Section 19(1) RTI Act", "from": "expiry of 30 days from request or date of refusal"},
+    "rti_second_appeal": {"period_days": 90, "section": "Section 19(3) RTI Act", "from": "date of first appellate order or deemed refusal"},
+
+    # Criminal
+    "criminal_complaint_private": {"period_years": 3, "section": "Section 468 CrPC", "from": "date of offence (punishable ≤ 3 years)"},
+    "criminal_revision_hc": {"period_days": 90, "section": "Section 397 CrPC", "from": "date of sessions/magistrate order"},
+
+    # Writ
+    "writ_petition_hc": {"period_years": 0, "section": "Article 226 Constitution", "from": "no fixed limitation but must be filed without unreasonable delay (typically within 6 months)", "note": "Laches-based — no statutory limitation but 6 months is conventional"},
+
+    # Customs & Excise
+    "customs_appeal_cestat": {"period_days": 60, "section": "Section 129A Customs Act", "from": "date of order-in-appeal"},
+    "customs_appeal_commissioner": {"period_days": 60, "section": "Section 128 Customs Act", "from": "date of order-in-original"},
+
+    # Arbitration
+    "arbitration_challenge_34": {"period_months": 3, "section": "Section 34 Arbitration Act", "from": "date of receiving award"},
+    "arbitration_appeal_37": {"period_days": 30, "section": "Section 37 Arbitration Act", "from": "date of order under S.9/S.34"},
 }
 
 
@@ -113,11 +163,163 @@ STAMP_DUTY_RATES = {
     },
     "uttar_pradesh": {
         "sale_deed": {"rate_pct": 7, "registration_pct": 1, "notes": "Plus 2% Nagar Nigam cess in urban"},
+        "lease_deed": {"rate_pct": 2, "notes": "Lease > 1 year"},
         "gift_deed_family": {"rate_pct": 0, "notes": "Exempt for blood relatives up to certain limit"},
+        "mortgage_deed": {"rate_pct": 3, "notes": "With possession"},
+        "partnership_deed": {"flat_amount": 500, "notes": "Per UP Stamp Act"},
+        "power_of_attorney": {"flat_amount": 100, "notes": "General POA"},
+        "agreement_to_sell": {"rate_pct": 0, "notes": "Nominal stamp in most cases"},
     },
     "tamil_nadu": {
-        "sale_deed": {"rate_pct": 7, "registration_pct": 1, "notes": "Plus 4% registration"},
+        "sale_deed": {"rate_pct": 7, "registration_pct": 4, "notes": "Total 11% (7% stamp + 4% registration)"},
+        "lease_deed": {"rate_pct": 1, "notes": "Lease > 1 year, per TN Stamp Act"},
         "gift_deed_family": {"rate_pct": 1, "notes": "Between specified relatives"},
+        "mortgage_deed": {"rate_pct": 1, "notes": "Simple mortgage"},
+        "partnership_deed": {"flat_amount": 300, "notes": "Per Article 46"},
+        "power_of_attorney": {"flat_amount": 100, "notes": "GPA"},
+    },
+    "telangana": {
+        "sale_deed": {"rate_pct": 5, "registration_pct": 0.5, "notes": "Plus transfer duty 1.5%"},
+        "lease_deed": {"rate_pct": 0.5, "notes": "Per Article 35"},
+        "gift_deed_family": {"rate_pct": 1, "notes": "Between blood relatives"},
+        "mortgage_deed": {"rate_pct": 0.5, "notes": "Simple mortgage"},
+        "partnership_deed": {"flat_amount": 500, "notes": "Per TS Stamp Act"},
+        "power_of_attorney": {"flat_amount": 200, "notes": "General POA"},
+        "agreement_to_sell": {"rate_pct": 0.5, "notes": "Adjustable against sale deed"},
+    },
+    "andhra_pradesh": {
+        "sale_deed": {"rate_pct": 5, "registration_pct": 0.5, "notes": "Plus transfer duty 1.5%"},
+        "lease_deed": {"rate_pct": 0.5, "notes": "Per AP Stamp Act"},
+        "gift_deed_family": {"rate_pct": 2, "notes": "Between family members"},
+        "mortgage_deed": {"rate_pct": 0.5, "notes": "Without possession"},
+        "partnership_deed": {"flat_amount": 500, "notes": "Per AP Stamp Act"},
+    },
+    "gujarat": {
+        "sale_deed": {"rate_pct": 4.9, "registration_pct": 1, "notes": "3.5% stamp + 1% registration + 0.4% additional"},
+        "lease_deed": {"rate_pct": 1, "notes": "Per Gujarat Stamp Act"},
+        "gift_deed_family": {"rate_pct": 2, "notes": "Close relatives lower rate"},
+        "mortgage_deed": {"rate_pct": 0.1, "notes": "Simple mortgage, max ₹15,000"},
+        "partnership_deed": {"flat_amount": 500, "notes": "Per Gujarat Stamp Act"},
+        "power_of_attorney": {"flat_amount": 100, "notes": "GPA"},
+        "agreement_to_sell": {"rate_pct": 0, "notes": "Rs 20 flat"},
+    },
+    "rajasthan": {
+        "sale_deed": {"rate_pct": 6, "registration_pct": 1, "notes": "Male: 6%, Female: 5% (1% concession)"},
+        "lease_deed": {"rate_pct": 1, "notes": "Per Rajasthan Stamp Act"},
+        "gift_deed_family": {"rate_pct": 2.5, "notes": "Between blood relatives"},
+        "mortgage_deed": {"rate_pct": 2, "notes": "With possession"},
+        "partnership_deed": {"flat_amount": 500, "notes": "Per Rajasthan Stamp Act"},
+        "power_of_attorney": {"flat_amount": 100, "notes": "General POA; SPA higher"},
+    },
+    "west_bengal": {
+        "sale_deed": {"rate_pct": 7, "registration_pct": 1, "notes": "KMC area: 6% + 1% surcharge; Mofussil: 5%"},
+        "lease_deed": {"rate_pct": 1, "notes": "Per WB Stamp Act"},
+        "gift_deed_family": {"rate_pct": 0.5, "notes": "Reduced rate for family transfer"},
+        "mortgage_deed": {"rate_pct": 0.3, "notes": "Simple mortgage"},
+        "partnership_deed": {"flat_amount": 500, "notes": "Per WB Stamp Act"},
+    },
+    "punjab": {
+        "sale_deed": {"rate_pct": 7, "registration_pct": 1, "notes": "Male: 7%, Female: 5%"},
+        "lease_deed": {"rate_pct": 2, "notes": "Per Punjab Stamp Act"},
+        "gift_deed_family": {"rate_pct": 3, "notes": "Between close relatives"},
+        "mortgage_deed": {"rate_pct": 1, "notes": "With possession"},
+        "partnership_deed": {"flat_amount": 500, "notes": "Per Indian Stamp Act"},
+    },
+    "haryana": {
+        "sale_deed": {"rate_pct": 7, "registration_pct": 1, "notes": "Male: 7%, Female: 5% (2% concession)"},
+        "lease_deed": {"rate_pct": 2, "notes": "Per Haryana Stamp Act"},
+        "gift_deed_family": {"rate_pct": 3, "notes": "Between specified relatives"},
+        "mortgage_deed": {"rate_pct": 1, "notes": "With possession"},
+    },
+    "madhya_pradesh": {
+        "sale_deed": {"rate_pct": 7.5, "registration_pct": 1, "notes": "Highest stamp duty state — 7.5%"},
+        "lease_deed": {"rate_pct": 2, "notes": "Per MP Stamp Act"},
+        "gift_deed_family": {"rate_pct": 2.5, "notes": "Between blood relatives"},
+        "mortgage_deed": {"rate_pct": 2, "notes": "With possession"},
+    },
+    "kerala": {
+        "sale_deed": {"rate_pct": 8, "registration_pct": 2, "notes": "Highest at 10% total (8% stamp + 2% registration)"},
+        "lease_deed": {"rate_pct": 2, "notes": "Per Kerala Stamp Act"},
+        "gift_deed_family": {"rate_pct": 3, "notes": "Between close relatives"},
+        "mortgage_deed": {"rate_pct": 1, "notes": "Without possession"},
+    },
+    "goa": {
+        "sale_deed": {"rate_pct": 3.5, "registration_pct": 1, "notes": "Lowest stamp duty state"},
+        "lease_deed": {"rate_pct": 1, "notes": "Per Goa Stamp Act"},
+        "gift_deed_family": {"rate_pct": 1, "notes": "Family transfers — reduced"},
+        "mortgage_deed": {"rate_pct": 0.5, "notes": "Without possession"},
+        "partnership_deed": {"flat_amount": 200, "notes": "Per Goa Stamp Act"},
+    },
+    "bihar": {
+        "sale_deed": {"rate_pct": 6.3, "registration_pct": 2, "notes": "5.7% stamp + 0.6% surcharge"},
+        "lease_deed": {"rate_pct": 1, "notes": "Per Bihar Stamp Act"},
+        "gift_deed_family": {"rate_pct": 3, "notes": "Between relatives"},
+    },
+    "jharkhand": {
+        "sale_deed": {"rate_pct": 6, "registration_pct": 2, "notes": "Urban: 6%, Rural: 4%"},
+        "lease_deed": {"rate_pct": 1, "notes": "Per Jharkhand Stamp Act"},
+        "gift_deed_family": {"rate_pct": 3, "notes": "Between relatives"},
+    },
+    "odisha": {
+        "sale_deed": {"rate_pct": 5, "registration_pct": 1, "notes": "Standard rate"},
+        "lease_deed": {"rate_pct": 1, "notes": "Per Odisha Stamp Act"},
+        "gift_deed_family": {"rate_pct": 2, "notes": "Between family members"},
+    },
+    "chhattisgarh": {
+        "sale_deed": {"rate_pct": 5, "registration_pct": 1, "notes": "Standard rate"},
+        "gift_deed_family": {"rate_pct": 2, "notes": "Family transfers"},
+    },
+    "assam": {
+        "sale_deed": {"rate_pct": 6, "registration_pct": 1, "notes": "Standard rate"},
+        "gift_deed_family": {"rate_pct": 3, "notes": "Between relatives"},
+    },
+    "uttarakhand": {
+        "sale_deed": {"rate_pct": 5, "registration_pct": 1, "notes": "Male: 5%, Female: 3.75%"},
+        "gift_deed_family": {"rate_pct": 2.5, "notes": "Between family members"},
+    },
+    "himachal_pradesh": {
+        "sale_deed": {"rate_pct": 6, "registration_pct": 1, "notes": "Standard rate"},
+        "gift_deed_family": {"rate_pct": 3, "notes": "Between relatives"},
+    },
+    "jammu_kashmir": {
+        "sale_deed": {"rate_pct": 7, "registration_pct": 1, "notes": "Per J&K Stamp Act post-abrogation"},
+        "gift_deed_family": {"rate_pct": 3, "notes": "Between relatives"},
+    },
+    "meghalaya": {
+        "sale_deed": {"rate_pct": 5, "registration_pct": 1, "notes": "Standard rate"},
+        "gift_deed_family": {"rate_pct": 2, "notes": "Family transfers"},
+    },
+    "tripura": {
+        "sale_deed": {"rate_pct": 5, "registration_pct": 1, "notes": "Standard rate"},
+        "gift_deed_family": {"rate_pct": 2, "notes": "Family transfers"},
+    },
+    "manipur": {
+        "sale_deed": {"rate_pct": 5, "registration_pct": 1, "notes": "Standard rate"},
+        "gift_deed_family": {"rate_pct": 2, "notes": "Family transfers"},
+    },
+    "mizoram": {
+        "sale_deed": {"rate_pct": 5, "registration_pct": 1, "notes": "Standard rate"},
+        "gift_deed_family": {"rate_pct": 2, "notes": "Family transfers"},
+    },
+    "nagaland": {
+        "sale_deed": {"rate_pct": 5, "registration_pct": 1, "notes": "Standard rate"},
+        "gift_deed_family": {"rate_pct": 2, "notes": "Family transfers"},
+    },
+    "arunachal_pradesh": {
+        "sale_deed": {"rate_pct": 5, "registration_pct": 1, "notes": "Standard rate"},
+        "gift_deed_family": {"rate_pct": 2, "notes": "Family transfers"},
+    },
+    "sikkim": {
+        "sale_deed": {"rate_pct": 5, "registration_pct": 1, "notes": "Standard rate"},
+        "gift_deed_family": {"rate_pct": 2, "notes": "Family transfers"},
+    },
+    "puducherry": {
+        "sale_deed": {"rate_pct": 7, "registration_pct": 2, "notes": "Total 9%"},
+        "gift_deed_family": {"rate_pct": 3, "notes": "Between relatives"},
+    },
+    "chandigarh": {
+        "sale_deed": {"rate_pct": 6, "registration_pct": 1, "notes": "Male: 6%, Female: 4%"},
+        "gift_deed_family": {"rate_pct": 2, "notes": "Between family members"},
     },
 }
 
