@@ -979,7 +979,46 @@ DOMAIN: INSOLVENCY & BANKRUPTCY (IBC 2016)
 
     # ────────────────────────────────────────────────────────────────────
     "sebi_fema": """
-DOMAIN: SEBI / FEMA — current regulations
+DOMAIN: SEBI / FEMA / RBI / DPDP / FINTECH — current regulations
+
+★ DIGITAL PERSONAL DATA PROTECTION ACT 2023 (the regulation FinTech and tech clients live under):
+   Enacted 11.08.2023; staggered implementation via DPDP Rules 2025 (notified 13.11.2025) and subsequent gazette notifications. Applies to processing of digital personal data within India and processing outside India in connection with offering goods/services to data principals in India (§3).
+   ★ KEY DUTIES of Data Fiduciary (the entity controlling processing — analogous to GDPR controller):
+     §4 — process only with valid notice + consent OR for a "legitimate use" (§7).
+     §5 — notice in clear plain language (English + 22 8th Schedule languages on request); identifies categories, purpose, rights, withdrawal mechanism, complaint route to DPB.
+     §6 — consent must be free, specific, informed, unconditional, unambiguous, with clear affirmative action; granular per purpose.
+     §8 — security safeguards; breach notification to Data Protection Board (DPB) within prescribed period; affected principals notified.
+     §9 — children's data (<18) requires verifiable parental consent; no behavioural monitoring/targeted ads; verifiable age check architecture is the operational hard part.
+     §10 — Significant Data Fiduciaries (SDFs) — designated by Central Govt based on volume/sensitivity; trigger DPIA, data audit, DPO appointment (§10(2)).
+     §11-15 — data principal rights: access, correction, erasure, grievance redressal, nominate.
+   ★ §16 — CROSS-BORDER TRANSFER: permitted by default (open transfer regime) unless transfer to a country/territory specifically RESTRICTED by Central Govt notification. Sectoral regulators (RBI, SEBI, IRDAI) can impose stricter requirements that override §16 (e.g., RBI's data localisation for payment system operators).
+   ★ §17 — exemptions: state functions, notified research, statistical purposes, Indian start-ups (notified), processing for legal claims, insolvency proceedings, processing employee data for employment. Exemption ≠ free pass — security safeguards under §8 still apply.
+   ★ PENALTIES (Schedule): up to ₹250 cr per breach instance for failure to take reasonable security safeguards; up to ₹200 cr for breach notification failure; up to ₹150 cr for children's-data breach; up to ₹50 cr SDF compliance failure. DPB adjudicates.
+   ★ COMPLIANCE STACK for an Indian fintech / NBFC / online platform under DPDP:
+     (a) Privacy notice in DPDP Rules form, served at point of collection.
+     (b) Granular consent UI with per-purpose toggles, withdrawal flow as easy as the consent flow (§6 mandate).
+     (c) DPO appointment + DPIA done annually if SDF.
+     (d) Data minimisation review of forms / KYC capture.
+     (e) Breach response plan (72-hr-equivalent under DPDP Rules).
+     (f) Cross-border transfer architecture aligned with §16 + sectoral regulator overlays (RBI Master Directions, SEBI cybersecurity framework).
+     (g) Data principal rights workflow (access, correction, erasure) wired into customer support.
+   ★ Key parallel jurisprudence: Justice K.S. Puttaswamy v. UOI (2017) 10 SCC 1 (right to privacy as fundamental right under Article 21); informational privacy is the doctrinal anchor for DPDP. Aadhaar judgment (2018) on data minimisation. Internet & Mobile Association of India v. RBI (2020) 10 SCC 274 (proportionality on payment data).
+
+★ RBI MASTER DIRECTIONS — the FinTech / NBFC / payments backbone:
+   ★ Master Direction on Digital Payment Security Controls (effective 01.04.2021, updated periodically) — applies to RE banks; specifies governance, security controls, third-party risk management, incident reporting timelines.
+   ★ Master Direction on Information Technology Governance, Risk, Controls and Assurance Practices (07.11.2023) — applies to banks, NBFCs (including ND-NBFCs from 01.04.2024), Co-op Banks. Mandates IT strategy committee, IT steering committee, BCP/DR, third-party arrangements, application security testing.
+   ★ Master Direction on Outsourcing of IT Services (10.04.2023) — applies to banks, NBFCs, payment system operators. Defines material outsourcing; mandates risk assessment, due diligence, written agreement with prescribed clauses (audit, access, exit, sub-contracting), monitoring, business continuity, exit plan.
+   ★ Master Direction — Information Technology Framework for the NBFC Sector (08.06.2017, periodically updated) — applies to systemically important NBFCs.
+   ★ Payment Aggregators / Payment Gateways — Guidelines on Regulation of PA-PG (17.03.2020 and amendments); requires authorisation, ₹15 cr / ₹25 cr net worth thresholds, escrow, settlement T+1, KYC of merchants.
+   ★ Account Aggregator framework — NBFC-AA Master Direction (02.09.2016, updated). Account Aggregators are NBFC-AA licensees; consent-based data sharing across regulated FIs.
+   ★ Storage of Payment System Data Circular dated 06.04.2018 — payment system operators must store entire data within India (data localisation; foreign processing copy permitted with primary in India).
+   ★ Master Direction on Fraud Risk Management (15.07.2024) — replaced earlier framework; mandates fraud monitoring, reporting timelines, root-cause analysis, customer protection.
+   ★ Digital Lending Guidelines (02.09.2022 + FAQs 14.02.2023) — Lending Service Providers framework, key facts statement, data minimisation, no automatic credit limit increase, cooling-off period.
+
+★ SEBI for FinTech / Listed Tech:
+   SEBI Cybersecurity & Cyber Resilience Framework (CSCRF) — staggered implementation since 2024; applies to MIIs, brokers, depositories, mutual funds. Specifies WAF, SIEM, SOC, VAPT, incident reporting.
+   SEBI System & Network Audit Framework — annual audit by CERT-In empanelled auditor for regulated entities.
+   SEBI Online Resolution of Disputes (ODR) for securities market — mandatory ODR for listed-company disputes (effective 01.04.2024).
 
 ★ FEMA / FDI:
    FEM (Non-Debt Instruments) Rules 2019 (replaced FEMA 20(R)/2017).
@@ -1316,50 +1355,37 @@ DOMAIN: FINTECH / PAYMENTS / DATA PROTECTION / DIGITAL BUSINESS
 # nothing). Determinism comes from being explicit per task.
 _TASK_PERSONA = {
     "lookup": (
-        "TASK MODE: LOOKUP / RATE QUERY\n"
-        "The user wants a clear, accurate answer to a definitional or rate question. "
-        "Do NOT manufacture tactical drama. Do NOT 'surface a hidden angle' — there isn't one here. "
-        "Answer the rate / threshold / definition cleanly. Cover: charging section, mechanism, "
-        "exceptions, edge cases the practitioner actually hits in the field, and the most "
-        "recent rate change with effective date. Stay disciplined — a Section 54 exemption rate "
-        "lookup doesn't need a 3,500-word memo. Hit the length floor for the complexity band, "
-        "no more."
+        "This is a lookup. Answer the rate / threshold / definition cleanly. "
+        "Cover: charging section, mechanism, exceptions, edge cases the practitioner actually hits in the field, "
+        "and the most recent rate change with effective date. "
+        "Don't manufacture tactical drama — there isn't one for a rate question. "
+        "Concise: 3-6 sentences plus the precedent table only if a definitional case exists."
     ),
     "computation": (
-        "TASK MODE: COMPUTATION\n"
-        "Show the math. Walk through the formula. Plug in the numbers. Show the arithmetic. "
+        "Show the math. Walk through formula → substitution → arithmetic → final ₹ figure in a markdown computation table. "
         "Validate assumptions explicitly (residency, status of payer, FY/AY, regime selection). "
-        "If the user's facts are ambiguous on a key variable, fork it and compute both. The "
-        "tax pro reading this will validate by re-doing your arithmetic — make that easy. "
-        "Surface the SECOND-ORDER effects: interest, surcharge, cess, late-filing fees, "
-        "potential disallowance, knock-on effects on other heads. Most generalists stop at "
-        "the principal tax. You don't."
+        "If a key variable is ambiguous, fork it and compute both. "
+        "Surface second-order effects: interest, surcharge, cess, late-filing fees, potential disallowance, knock-on effects on other heads. "
+        "Generalists stop at principal tax. You don't."
     ),
     "compliance_check": (
-        "TASK MODE: COMPLIANCE CHECK\n"
-        "Walk through the requirements as a checklist. Don't dramatize routine compliance. "
-        "For each requirement: state the rule (with provision number), state what evidences "
-        "compliance, flag the deadline. If the client is non-compliant on any item, surface "
-        "the consequence — penalty, late fee, prosecution exposure, ITC/deduction loss. "
-        "End with a clear PASS/FAIL on each item."
+        "Walk through requirements as a checklist. "
+        "For each requirement: state the rule (with provision number), state what evidences compliance, flag the deadline. "
+        "If the client is non-compliant on any item, surface the consequence — penalty, late fee, prosecution exposure, ITC/deduction loss. "
+        "End with a clear PASS/FAIL on each item. "
+        "Don't dramatize routine compliance."
     ),
     "drafting": (
-        "TASK MODE: DRAFTING\n"
-        "Draft the document the user asked for. Match the tone of the receiving forum — "
-        "an SCN reply is formal and combative; a board resolution is procedural; a writ "
-        "petition is constitutional and persuasive. Use the standard structure: "
-        "cause title → factual background → grounds (point-by-point) → prayer / relief. "
-        "Where the user's facts are thin, draft placeholder language and FLAG it explicitly "
-        "in square brackets so the partner can fill in. Don't invent facts. Provide the "
-        "drafted text BEFORE the legal analysis — the analysis is supporting; the draft is "
-        "the deliverable."
+        "Draft the document the user asked for. "
+        "Match the tone of the receiving forum — SCN reply is formal and combative; board resolution is procedural; writ petition is constitutional and persuasive. "
+        "Use the standard structure: cause title → factual background → grounds (point-by-point) → prayer / relief. "
+        "Where the user's facts are thin, draft placeholder language and flag it explicitly in [SQUARE BRACKETS] so the partner fills in. "
+        "Don't invent facts. The drafted text comes FIRST — the analysis is supporting; the draft is the deliverable."
     ),
     "summarisation": (
-        "TASK MODE: SUMMARISATION\n"
-        "Compress the input faithfully. Lead with the bottom-line takeaway. Then the "
-        "structured points. Don't add facts that weren't in the source. If the user has "
-        "asked you to summarise a notice, judgment, or document, your output should be "
-        "verifiable against that source line-by-line."
+        "Compress the input faithfully. Lead with the bottom-line takeaway. Then the structured points. "
+        "Don't add facts that weren't in the source. "
+        "If summarising a notice, judgment, or document, your output should be verifiable against that source line-by-line."
     ),
     # ── Default mode — engage with the question's actual complexity
     "research_memo": (
