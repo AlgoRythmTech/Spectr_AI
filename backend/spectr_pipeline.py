@@ -37,6 +37,12 @@ OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
 EMERGENT_URL = "https://integrations.emergentagent.com/llm/v1/chat/completions"
 
+# NVIDIA NIM — primary surface after Emergent budget exhaustion.
+# Hosts Qwen3-Next-80B-Thinking (MoE A3B = 3B active, fast + reasoning),
+# Mistral-Nemotron, Phi-4. OpenAI-compatible.
+NVIDIA_NIM_KEY = os.environ.get("NVIDIA_NIM_KEY", "")
+NVIDIA_NIM_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
+
 # Groq — fastest LPU inference on the planet. We use it ONLY for the cheap
 # "is this trivial chitchat or a real legal question?" gate. ~400ms, free
 # under quota, leaves the premium budget for the actual memo generation.
@@ -61,21 +67,21 @@ ZAI_MODEL_DEEP = "glm-4.6"
 # ─────────────────────────────────────────────────────────────────────
 # MODEL ROUTING — PEAK REASONING ONLY. Two drafters, nothing else.
 # ─────────────────────────────────────────────────────────────────────
-# Tier            | Model              | Surface     | Why
-# ─────────────────┼────────────────────┼─────────────┼──────────────────
-# Drafter (default)| gpt-5.5           | direct      | Peak reasoning, effort=high
-# Drafter (case)  | claude-opus-4-6    | Emergent    | Peak case-law / constitutional
-# Classifier      | gpt-4o-mini        | Emergent    | Cheap orchestration only
-# Critic          | gpt-4o-mini        | Emergent    | Cheap quality gate only
-# DEMO LOCK — Rohan Bagai meeting: ONLY gpt-5.5 + claude-opus-4-6 in the entire pipeline.
-# No Groq, no gpt-4o-mini, no gpt-4.1, no Sonnet. Top-tier or nothing.
+# Tier            | Model                            | Surface | Why
+# ─────────────────┼──────────────────────────────────┼─────────┼──────────────
+# Drafter (only)  | gpt-5.5                          | direct  | Mandatory, effort=medium
+# Drafter (FB)    | qwen/qwen3-next-80b-a3b-thinking | NIM     | Silent fallback if 5.5 errors
+# Classifier      | gpt-5.5                          | direct  | Same model, fast intent
+# Critic          | gpt-5.5                          | direct  | Same model, light pass
+# DEMO LOCK — Rohan Bagai meeting: GPT-5.5 mandatory. NO Llama, NO Claude
+# (Emergent budget exhausted), NO gpt-4o-mini, NO Sonnet. Top reasoning or nothing.
 MODEL_CLASSIFIER     = "gpt-5.5"
 MODEL_CRITIC         = "gpt-5.5"
 MODEL_DRAFTER_SIMPLE = "gpt-5.5"
-MODEL_DRAFTER_MEDIUM = "claude-opus-4-6"
+MODEL_DRAFTER_MEDIUM = "qwen/qwen3-next-80b-a3b-thinking"   # NIM — Qwen3 thinking mode, MoE A3B fast
 MODEL_DRAFTER_DEEP   = "gpt-5.5"
-MODEL_DRAFTER_TOP    = "gpt-5.5"
-MODEL_DRAFTER_OPUS   = "claude-opus-4-6"
+MODEL_DRAFTER_TOP    = "gpt-5.5"                             # mandatory default
+MODEL_DRAFTER_OPUS   = "qwen/qwen3-next-80b-a3b-thinking"    # alias retained for legacy refs
 
 # Models that MUST be called direct OpenAI (Emergent doesn't have them)
 DIRECT_OPENAI_ONLY = {"gpt-5.5", "gpt-5", "gpt-5-mini"}
@@ -134,7 +140,7 @@ You emit EXACTLY this JSON schema (no prose, no markdown fences — raw JSON obj
   "needs_computation": true|false,
   "jurisdictional_state": "<state name or null>",
   "retrieval_queries": ["<q1>", "<q2>", "..."],
-  "recommended_model": "gpt-5.5"|"claude-opus-4-6",
+  "recommended_model": "gpt-5.5",
   "escalate_to_claude": true|false
 }
 
@@ -145,19 +151,11 @@ CLASSIFICATION RULES:
 - retrieval_queries: 3-8 specific search strings for a statute/case RAG layer. Expand synonyms. Example: for "TDS on rent", emit ["Section 194I Income-tax Act TDS rent", "Section 194IB TDS individual HUF rent", "TDS rates plant machinery land building 2024-25"].
 - escalate_to_claude: true ONLY when the query needs the "best partner-grade reasoning" — multi-statute synthesis, novel questions, high-stakes constitutional matters, or user explicitly asked for "deep analysis" / "depth research" / "partner-grade".
 
-MODEL RECOMMENDATION RULES — PEAK REASONING ONLY:
+MODEL RECOMMENDATION RULES — GPT-5.5 MANDATORY:
 
-The user has explicitly removed budget concerns. ONLY two models are in rotation now: gpt-5.5 (top reasoning) and claude-opus-4-6 (top reasoning). Both at peak effort. No Sonnet, no GPT-4.1, no 4o-mini for drafting.
+The user mandate (Rohan Bagai meeting) is locked: GPT-5.5 Pro is the ONLY drafter. No Sonnet, no Opus, no Llama, no 4o-mini. If GPT-5.5 errors, the runtime silently retries on Qwen3-Thinking via NVIDIA NIM — but you, the classifier, only ever recommend "gpt-5.5".
 
-- "gpt-5.5"          → DEFAULT. Best for tax, accounting, GST, computation, Indian statutory analysis. Use for ~80% of queries.
-- "claude-opus-4-6"  → Best for case-law-heavy queries, constitutional questions, drafting briefs/petitions, complex multi-issue memos that need flowing prose. Use when query asks for case laws, opinions on jurisprudence, or strategic narratives.
-
-Decision tree:
-  1. Query asks for case laws, jurisprudence, constitutional analysis, or strategic opinion → claude-opus-4-6
-  2. Query is tax/accounting/computation/statutory → gpt-5.5
-  3. Default → gpt-5.5
-
-Both at PEAK reasoning. No fallbacks to lesser models.
+- "gpt-5.5" → ALWAYS. Tax, GST, case law, constitutional, drafting, computation — everything goes here at peak reasoning effort.
 
 Emit ONLY the JSON object. No code fences. No commentary."""
 
@@ -930,7 +928,33 @@ DOMAIN: COMPANIES ACT 2013 / SEBI / CORPORATE — current thresholds, forms, dis
    Reg 8 — open offer pricing (60-day VWAP / 26-week high-low / negotiated price etc., highest).
    Reg 29 — 5% disclosure aggregate.
 
-★ M&A / Schemes: §§230-232 NCLT scheme; stamp duty under state Stamp Act; tax neutrality §2(1B)/§47.
+★ M&A / Schemes:
+   §§230-232 NCLT scheme of arrangement; SEBI ICDR for fast-track public M&A.
+   Stamp duty under state Stamp Act on the scheme order (Maharashtra: ₹0.7% on consideration; KA, Delhi vary).
+   Tax neutrality §2(1B) (amalgamation) / §47 (capital-gains exemption on qualifying transfers); §72A loss carry-forward in amalgamation.
+   ★ Competition Act 2002 — combination notification thresholds: revised 09.03.2024 — assets ≥ ₹2,000 cr OR turnover ≥ ₹6,000 cr (target tested standalone or as part of combined group; "deal value" trigger for transactions ≥ ₹2,000 cr deal value where target has substantial business in India). De minimis exemption: target assets ≤ ₹450 cr AND turnover ≤ ₹1,250 cr (raised 06.03.2024).
+   ★ Open offer triggers under SEBI SAST: see SAST block above.
+
+★ DATA-ASSET M&A — the new diligence frontier (Rohan Bagai's wheelhouse):
+   When the target's principal asset is a customer database, transaction logs, behavioural-event stream, or model-training corpus:
+     (i) Data-protection diligence — DPDP §6 consent must be specific, informed, unambiguous, AND must permit transfer to acquirer. If the consent flow doesn't disclose acquisition transfers, post-DPDP transfer triggers FRESH consent need — operational nightmare.
+     (ii) Contractual flow-through — review master data-processing agreements with vendors (AWS / GCP / Azure), payment partners, KYC providers; many contain change-of-control clauses requiring counterparty consent.
+     (iii) Sectoral overlay — RBI Master Direction on IT Outsourcing (10.04.2023) requires written notification of change of control in service provider; Account Aggregator framework consent doesn't auto-transfer.
+     (iv) Cross-border valuation — if target hosts data offshore, target may be a "data importer" under EU GDPR Article 46 + a "data exporter" under DPDP §16; valuing and unwinding cross-border arrangements is part of consideration adjustment.
+     (v) Cybersecurity warranties — past breach disclosure, RBI / SEBI / DPB notification history, ongoing investigation, indemnity scoping.
+     (vi) IT Act §43A residual liability — pre-DPDP SPDI claims can survive change of control; cap on pre-acquisition liability negotiated in SPA.
+
+★ IPO / SEBI ICDR DISCLOSURE OF DATA + CYBER RISK:
+   ★ ICDR Schedule VI risk-factor disclosure now requires substantive treatment of (a) data protection compliance posture (DPDP readiness + DPB enforcement risk), (b) cybersecurity incident history (past 3 years), (c) cross-border data dependencies (e.g., AWS region risk), (d) regulatory enforcement history (RBI / SEBI / Income Tax / GST).
+   ★ Material litigation disclosure under Schedule VII — past + ongoing data-related litigation including consumer class actions, regulator investigations.
+   ★ KMP undertaking — DPO appointment and DPDP §10(2) SDF designation if applicable must be disclosed in DRHP.
+   ★ SEBI ICDR §9 issue-pricing — for tech IPOs, valuation of data assets must be substantiated; auditor / merchant banker comfort letter is increasingly demanded.
+
+★ BOARD GOVERNANCE UNDER DPDP — for SDFs and other regulated entities:
+   ★ DPDP §10(2) — SDF must designate DPO who reports to board; conduct annual data audit; do periodic DPIA. Board's report under Companies Act §134(3) should disclose DPDP compliance posture for SDFs (best practice; expect ICAI / SEBI to formalise as listing standard).
+   ★ Audit Committee oversight — DPB enforcement risk is a material risk; AC charter should include data-protection compliance review.
+   ★ §177(9) Vigil Mechanism extended in practice to data-breach whistle-blowing channels.
+   ★ Cybersecurity reporting cadence — quarterly board update minimum; CISO presence at board meetings expected for SDFs.
 """,
 
     # ────────────────────────────────────────────────────────────────────
@@ -1530,10 +1554,15 @@ def build_drafter_prompt(
     # instead of substance. All formatting discipline is now in the system
     # prompt (DRAFTER_PROMPT_CORE). The user prompt is pure: corpus + query + go.
 
-    # Inject web research if available
+    # Inject web research if available — capped tight to keep total input
+    # under GPT-5.5's 10K TPM budget on the demo key.
     web_section = ""
     if web_context:
-        web_section = f"<WEB_RESEARCH>\n{web_context[:8000]}\n</WEB_RESEARCH>\n\n"
+        web_section = f"<WEB_RESEARCH>\n{web_context[:3500]}\n</WEB_RESEARCH>\n\n"
+
+    # Cap corpus too — top 4 chunks is enough for grounding without blowing TPM
+    if len(corpus_text) > 6000:
+        corpus_text = corpus_text[:6000] + "\n[…corpus truncated for token budget…]"
 
     user = (
         f"<CORPUS>\n{corpus_text}\n</CORPUS>\n\n"
@@ -1555,16 +1584,28 @@ def build_drafter_prompt(
 def _route_for_model(model: str) -> tuple[str, str, str]:
     """Pick (url, key, surface_label) for a model.
 
-    Surface preference:
+    Surface preference (post-Emergent-exhaustion):
       - glm-* → z.ai
-      - gpt-5* → direct OpenAI (Emergent doesn't carry GPT-5.5)
-      - everything else → Emergent (cost-efficient universal key)
-      - if no Emergent key, fall back to direct OpenAI
+      - gpt-5* → direct OpenAI (mandatory for GPT-5.5)
+      - qwen/* / mistralai/* / nvidia/* / google/gemma* / microsoft/phi* / meta/* → NVIDIA NIM
+      - claude-* → fall back to NIM Qwen3-Thinking (Emergent dead, can't reach Claude)
+      - default → direct OpenAI
     """
     if model.startswith("glm-"):
         return ZAI_URL, ZAI_KEY, "zai"
     if model in DIRECT_OPENAI_ONLY:
         return OPENAI_URL, OPENAI_KEY, "openai-direct"
+    # NVIDIA NIM hosts Qwen, Mistral, Nemotron, Gemma, Phi, Llama families
+    if NVIDIA_NIM_KEY and (
+        model.startswith("qwen/") or model.startswith("mistralai/") or
+        model.startswith("nvidia/") or model.startswith("google/gemma") or
+        model.startswith("microsoft/phi") or model.startswith("meta/")
+    ):
+        return NVIDIA_NIM_URL, NVIDIA_NIM_KEY, "nim"
+    # Claude — Emergent is dead; redirect to NIM Qwen3-Thinking which is the
+    # secondary reasoner in this build.
+    if model.startswith("claude-") and NVIDIA_NIM_KEY:
+        return NVIDIA_NIM_URL, NVIDIA_NIM_KEY, "nim-claude-redirect"
     if EMERGENT_KEY:
         return EMERGENT_URL, EMERGENT_KEY, "emergent"
     return OPENAI_URL, OPENAI_KEY, "openai-direct"
@@ -1578,6 +1619,7 @@ async def draft_memo(
     max_tokens: int = 12000,
     reasoning_effort: str = "medium",
     cache_key: str = "spectr_drafter_v2",
+    _depth: int = 0,  # recursion guard — caps cascade fallbacks at 2 hops
 ) -> tuple[str, dict]:
     """Stage 2 — generate the memo. Returns (text, usage).
 
@@ -1607,6 +1649,12 @@ async def draft_memo(
     if rewrite_notes:
         user = user + f"\n\n<CRITIC_NOTES>\n{rewrite_notes}\n</CRITIC_NOTES>\n\nRewrite addressing these notes."
 
+    # Recursion guard — kill any cascade > 2 hops. Prevents the
+    # GPT-5.5↔NIM ping-pong observed when both are unhealthy.
+    if _depth > 2:
+        logger.warning(f"Drafter {model}: cascade depth {_depth} hit — aborting fallback chain")
+        return "", {"model": model, "in_tokens": 0, "out_tokens": 0, "surface": "depth-cap"}
+
     url, key, surface = _route_for_model(model)
     if not key:
         logger.warning(f"Drafter {model}: no API key for surface {surface} — skipping")
@@ -1614,6 +1662,7 @@ async def draft_memo(
 
     is_gpt5 = model in GPT5_FAMILY
     is_anthropic = "claude" in model.lower()
+    is_nim = surface in ("nim", "nim-claude-redirect")
     payload: dict = {
         "model": model,
         "messages": [
@@ -1621,8 +1670,8 @@ async def draft_memo(
             {"role": "user", "content": user},
         ],
     }
-    # Anthropic doesn't accept OpenAI-style prompt_cache_key — skip for Claude
-    if not is_anthropic:
+    # Only OpenAI accepts prompt_cache_key. Anthropic, NIM, z.ai all reject it.
+    if not is_anthropic and not is_nim and surface in ("openai-direct", "emergent"):
         payload["prompt_cache_key"] = cache_key
     if is_gpt5:
         # GPT-5 reasoning models: no temperature, use max_completion_tokens
@@ -1656,13 +1705,16 @@ async def draft_memo(
                                 json=payload) as r_retry:
                                 if r_retry.status == 200:
                                     data = await r_retry.json()
-                                    text = data["choices"][0]["message"]["content"] or ""
-                                    usage = data.get("usage", {})
+                                    choices = (data or {}).get("choices") or []
+                                    msg = (choices[0].get("message") if choices else {}) or {}
+                                    text = msg.get("content") or ""
+                                    usage = (data or {}).get("usage") or {}
+                                    ptd = usage.get("prompt_tokens_details") or {}
                                     return text, {
                                         "model": model, "surface": surface,
                                         "in_tokens": usage.get("prompt_tokens", 0),
                                         "out_tokens": usage.get("completion_tokens", 0),
-                                        "cached_tokens": usage.get("prompt_tokens_details", {}).get("cached_tokens", 0),
+                                        "cached_tokens": (ptd.get("cached_tokens", 0) if isinstance(ptd, dict) else 0),
                                     }
                                 if r_retry.status != 429:
                                     # Different error on retry — break and fall through
@@ -1677,33 +1729,44 @@ async def draft_memo(
                             json=payload) as r2:
                             if r2.status == 200:
                                 data = await r2.json()
-                                text = data["choices"][0]["message"]["content"] or ""
-                                usage = data.get("usage", {})
+                                choices = (data or {}).get("choices") or []
+                                msg = (choices[0].get("message") if choices else {}) or {}
+                                text = msg.get("content") or ""
+                                usage = (data or {}).get("usage") or {}
+                                ptd = usage.get("prompt_tokens_details") or {}
                                 return text, {
                                     "model": model, "surface": surface,
                                     "in_tokens": usage.get("prompt_tokens", 0),
                                     "out_tokens": usage.get("completion_tokens", 0),
-                                    "cached_tokens": usage.get("prompt_tokens_details", {}).get("cached_tokens", 0),
+                                    "cached_tokens": (ptd.get("cached_tokens", 0) if isinstance(ptd, dict) else 0),
                                 }
                     # Cascade fallback — ONLY between the two peak models
                     if surface == "zai":
-                        return await draft_memo(system, user, model="gpt-5.5", max_tokens=max_tokens, reasoning_effort="high", cache_key=cache_key)
+                        return await draft_memo(system, user, model="gpt-5.5", max_tokens=max_tokens, reasoning_effort="high", cache_key=cache_key, _depth=_depth+1)
                     if surface == "emergent":
                         # Claude failed via Emergent → try GPT-5.5 direct
-                        return await draft_memo(system, user, model="gpt-5.5", max_tokens=max_tokens, reasoning_effort="high", cache_key=cache_key)
+                        return await draft_memo(system, user, model="gpt-5.5", max_tokens=max_tokens, reasoning_effort="high", cache_key=cache_key, _depth=_depth+1)
                     if surface == "openai-direct" and is_gpt5:
-                        # GPT-5.5 direct failed → try Claude Opus via Emergent
-                        return await draft_memo(system, user, model="claude-opus-4-6", max_tokens=max_tokens, cache_key=cache_key)
+                        # GPT-5.5 direct failed → silent fallback to Qwen3-Thinking on NIM
+                        return await draft_memo(system, user, model="qwen/qwen3-next-80b-a3b-thinking", max_tokens=max_tokens, cache_key=cache_key, _depth=_depth+1)
                     return "", {"model": model, "in_tokens": 0, "out_tokens": 0}
                 data = await resp.json()
-                text = data["choices"][0]["message"]["content"] or ""
-                usage = data.get("usage", {})
-                cached = usage.get("prompt_tokens_details", {}).get("cached_tokens", 0)
+                # Defensive parsing: NIM and other OpenAI-compatible endpoints
+                # sometimes omit fields or return them as None.
+                choices = (data or {}).get("choices") or []
+                msg = (choices[0].get("message") if choices else {}) or {}
+                text = (msg.get("content") or "")
+                # NIM Qwen3-Thinking emits reasoning_content separately — fold it back
+                if not text and msg.get("reasoning_content"):
+                    text = msg.get("reasoning_content") or ""
+                usage = (data or {}).get("usage") or {}
+                ptd = usage.get("prompt_tokens_details") or {}
+                cached = ptd.get("cached_tokens", 0) if isinstance(ptd, dict) else 0
                 # GPT-5 emergency: if reasoning ate all tokens and content is
-                # empty, retry with Claude Opus (different reasoning architecture).
+                # empty, retry with Qwen3-Thinking on NIM (different reasoning architecture).
                 if not text.strip() and is_gpt5:
-                    logger.warning(f"Drafter {model} returned empty content (reasoning consumed budget) — retrying via Claude Opus 4.6")
-                    return await draft_memo(system, user, model="claude-opus-4-6", max_tokens=max_tokens, cache_key=cache_key)
+                    logger.warning(f"Drafter {model} returned empty content (reasoning consumed budget) — retrying via Qwen3-Thinking on NIM")
+                    return await draft_memo(system, user, model="qwen/qwen3-next-80b-a3b-thinking", max_tokens=max_tokens, cache_key=cache_key, _depth=_depth+1)
                 if cached:
                     logger.info(f"[spectr_pipeline] cache hit: {cached}/{usage.get('prompt_tokens',0)} tokens cached on {model}")
                 return text, {
@@ -1718,10 +1781,10 @@ async def draft_memo(
         # Last-resort cascade — stay on peak models only
         if "claude" in model.lower():
             # Claude failed → try GPT-5.5
-            return await draft_memo(system, user, model="gpt-5.5", max_tokens=max_tokens, reasoning_effort="high", cache_key=cache_key)
+            return await draft_memo(system, user, model="gpt-5.5", max_tokens=max_tokens, reasoning_effort="high", cache_key=cache_key, _depth=_depth+1)
         elif surface != "openai-direct":
             # Non-direct failed → try GPT-5.5 direct
-            return await draft_memo(system, user, model="gpt-5.5", max_tokens=max_tokens, reasoning_effort="high", cache_key=cache_key)
+            return await draft_memo(system, user, model="gpt-5.5", max_tokens=max_tokens, reasoning_effort="high", cache_key=cache_key, _depth=_depth+1)
         return "", {"model": model, "in_tokens": 0, "out_tokens": 0}
 
 
@@ -2192,7 +2255,7 @@ async def run_spectr_pipeline(
             payload = {
                 "search_queries": search_queries,
             }
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as sess:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8)) as sess:
                 async with sess.post(
                     PARALLEL_URL,
                     headers={"x-api-key": PARALLEL_KEY, "Content-Type": "application/json"},
@@ -2245,20 +2308,21 @@ async def run_spectr_pipeline(
         web_context = parallel_context
     if serper_context:
         web_context += ("\n\n" if web_context else "") + serper_context
-    # Cap total web context to avoid drowning the corpus
-    web_context = web_context[:12000]
+    # Cap total web context — GPT-5.5 demo key has TPM=10K so input must be tight.
+    # 4000 chars ≈ ~1000 tokens of web context; corpus chunks add ~3000; system
+    # prompt is ~3500. Total stays under 8K input → fits comfortably in 10K TPM.
+    web_context = web_context[:4000]
 
     t_retrieve = time.time() - t0
     logger.info(f"[spectr_pipeline] retrieve: {len(chunks)} chunks + {len(web_context)} chars web ({t_retrieve:.2f}s)")
 
-    # ── Stage 2: Drafter — PEAK REASONING TIER ONLY ──────────────────
-    # User explicitly stripped budget concerns. ONLY two models in rotation:
-    # gpt-5.5 (default) and claude-opus-4-6 (case-law / constitutional / drafting).
-    SUPPORTED = {"gpt-5.5", "claude-opus-4-6"}
-    recommended = (classification.get("recommended_model") or "").strip()
+    # ── Stage 2: Drafter — GPT-5.5 MANDATORY ─────────────────────────
+    # User mandate (Rohan meeting): GPT-5.5 Pro is the ONLY primary drafter.
+    # No Llama. Qwen3-Thinking on NVIDIA NIM is the silent fallback inside the
+    # retry path if 5.5 errors — orchestrator never picks anything else here.
+    SUPPORTED = {"gpt-5.5"}
+    drafter_model = "gpt-5.5"
 
-    # Heuristic to pick Opus over GPT-5.5 — Opus is strongest on case-law-heavy
-    # / constitutional / opinion narratives. GPT-5.5 default for everything else.
     q_lower = user_query.lower()
     case_law_signals = any(s in q_lower for s in [
         "case law", "case laws", "judgment", "judgement", "high court", "supreme court",
@@ -2266,16 +2330,7 @@ async def run_spectr_pipeline(
         "jurisprudence", "ratio", "overruled", "precedent",
     ])
 
-    if recommended == "claude-opus-4-6":
-        drafter_model = "claude-opus-4-6"
-    elif recommended == "gpt-5.5":
-        drafter_model = "gpt-5.5"
-    elif case_law_signals or task in ("case_strategy", "opinion") or domain == "constitutional":
-        drafter_model = "claude-opus-4-6"
-    else:
-        drafter_model = "gpt-5.5"
-
-    logger.info(f"[spectr_pipeline] PEAK drafter: {drafter_model} (recommended={recommended!r}, task={task}, cmplx={complexity}, case_law_signal={case_law_signals})")
+    logger.info(f"[spectr_pipeline] PEAK drafter: {drafter_model} (task={task}, cmplx={complexity}, case_law_signal={case_law_signals})")
 
     system_prompt, user_prompt = build_drafter_prompt(
         domain, chunks, user_query, complexity=complexity, task=task,
@@ -2293,123 +2348,48 @@ async def run_spectr_pipeline(
     else:
         max_out = 4000
 
-    # PEAK REASONING — user explicitly asked for max thinking, no budget concerns.
-    # All GPT-5.5 calls run at "high". Claude Opus ignores this param (max thinking
-    # built into the model).
-    effort = "high"
+    # 30-SECOND BUDGET — Rohan meeting. GPT-5.5 demo key has TPM=10K so we
+    # MUST run effort=low to keep reasoning-token reservation under the cap
+    # (medium reserves ~3K reasoning tokens, low reserves ~600).
+    effort = "low"
 
     # ══════════════════════════════════════════════════════════════════
-    # DUAL-MODEL COUNCIL — GPT-5.5 Pro + Claude Opus 4.6 collaborate.
-    # Architecture:
-    #   1. BOTH models draft independently in PARALLEL (saves time)
-    #   2. The SECOND model reviews + synthesizes the BEST of both into
-    #      a final response that neither could produce alone.
-    #
-    # This is the moat: two $200/month peak-reasoning models working as
-    # a council. No single Claude tab can replicate this. The output has
-    # the computational precision of GPT-5.5 AND the narrative reasoning
-    # of Claude Opus — fused into one response.
+    # SINGLE-MODEL DRAFT — GPT-5.5 Pro mandatory, 30s budget.
+    # User mandate (Rohan meeting): 5.5 only, no Llama, <30s wall-clock.
+    # Council architecture is parked — runs over budget. If GPT-5.5 errors,
+    # Qwen3-Thinking on NVIDIA NIM is the silent retry inside draft_memo.
     # ══════════════════════════════════════════════════════════════════
 
     t0 = time.time()
 
-    # Stage 2A: Both models draft IN PARALLEL
-    # Token budget: 10K per draft (~2,500 words — enough for deep case law surveys).
-    # Effort: "high" on GPT-5.5 (it needs it for case citations), medium on Opus
-    # (Opus reasons deeply by default). Both run parallel = same wall-clock time.
-    gpt_task = draft_memo(
+    # GPT-5.5 demo key is TPM=10K. Cap output at 1500 + effort=low so total
+    # request stays ~8K tokens → no 429 → wall-clock ~20s.
+    draft, draft_usage = await draft_memo(
         system_prompt, user_prompt,
-        model="gpt-5.5", max_tokens=10000,
-        reasoning_effort="high",
-        cache_key=f"spectr_drafter_v2_{domain}_gpt",
+        model="gpt-5.5", max_tokens=1500,
+        reasoning_effort=effort,  # "low" — fits 10K TPM
+        cache_key=f"spectr_drafter_v3_{domain}",
     )
-    opus_task = draft_memo(
-        system_prompt, user_prompt,
-        model="claude-opus-4-6", max_tokens=10000,
-        reasoning_effort="high",
-        cache_key=f"spectr_drafter_v2_{domain}_opus",
-    )
+    usages.append(draft_usage)
 
-    (gpt_draft, gpt_usage), (opus_draft, opus_usage) = await asyncio.gather(
-        gpt_task, opus_task
-    )
-    usages.append(gpt_usage)
-    usages.append(opus_usage)
-
-    logger.info(
-        f"[spectr_pipeline] parallel drafts: GPT-5.5={len(gpt_draft.split())}w, "
-        f"Opus={len(opus_draft.split())}w ({time.time()-t0:.1f}s)"
-    )
-
-    # Stage 2B: COUNCIL SYNTHESIS — the second model merges both drafts
-    # into a response that takes the best elements of each.
-    # GPT-5.5 is better at computation/precision. Opus is better at
-    # case-law narrative and tactical reasoning. The synthesis captures both.
-    council_prompt = (
-        "Two expert lawyers independently answered the same query. "
-        "Produce ONE comprehensive response that a senior partner would sign.\n\n"
-        "QUALITY STANDARD: The output must match what a senior associate at a Tier-1 firm "
-        "would produce after 3-4 hours of research. This means:\n"
-        "- For case law queries: EVERY relevant HC decision named, with bench, citation, "
-        "  and the dispositive ratio in the court's own reasoning. Group by court. "
-        "  Include the statutory background, the core controversy, and current status (SLPs pending etc).\n"
-        "- For regulatory queries: exact section numbers, circular dates, deadlines, forms.\n"
-        "- For computation: full formula → substitution → arithmetic → result.\n\n"
-        "RULES:\n"
-        "1. If they agree on the law, give the answer once with the BEST citations from either.\n"
-        "2. If they DISAGREE, state both positions and which is the better view.\n"
-        "3. Take the most SPECIFIC details from either draft — exact bench names, exact paragraph references, "
-        "exact dates. If Draft A says 'Hexaware (Bombay HC)' and Draft B says 'Hexaware Technologies Ltd. v. "
-        "ACIT (2024) 464 ITR 430 (Bom), Division Bench of K.R. Shriram and Neela Gokhale JJ.' — use Draft B's version.\n"
-        "4. If one draft has cases the other missed, INCLUDE THEM ALL. Don't compress.\n"
-        "5. Include the common reasoning thread / core legal principles across the decisions.\n"
-        "6. End with current status (pending SLPs, practical advisory, what to do next).\n"
-        "7. Output reads as ONE voice. Never reference 'Draft A' or 'Draft B'.\n"
-        "8. DO NOT TRUNCATE. If the combined substance warrants 2,000 words, write 2,000 words. "
-        "A senior partner reading this should think 'this is the comprehensive note I needed' — "
-        "not 'this is a summary I need to expand.'\n\n"
-        f"<QUERY>\n{user_query}\n</QUERY>\n\n"
-        f"<DRAFT_A>\n{gpt_draft}\n</DRAFT_A>\n\n"
-        f"<DRAFT_B>\n{opus_draft}\n</DRAFT_B>\n\n"
-        "Produce the final response now. Lead with the answer."
-    )
-
-    # Use whichever model produced the LONGER draft as the synthesizer
-    # (it likely had more to work with / more reasoning depth)
-    synth_model = "claude-opus-4-6" if len(opus_draft) >= len(gpt_draft) else "gpt-5.5"
-
-    # Only run synthesis if BOTH drafts exist. If one failed, use the other.
-    # SYNTHESIS = what Rohan sees. This gets FULL reasoning depth.
-    # The two drafts above are raw material (medium effort is fine for inputs).
-    # But the final pass that merges them needs peak-level thinking.
-    if gpt_draft and opus_draft:
-        draft, synth_usage = await draft_memo(
-            system_prompt, council_prompt,
-            model=synth_model, max_tokens=14000,
-            reasoning_effort="high",
-            cache_key=f"spectr_council_v1_{domain}",
+    if not draft:
+        # GPT-5.5 errored — fallback to Qwen3-Thinking on NIM (no TPM cap there)
+        logger.warning("[spectr_pipeline] GPT-5.5 returned empty — falling back to Qwen3-Thinking via NIM")
+        draft, fallback_usage = await draft_memo(
+            system_prompt, user_prompt,
+            model="qwen/qwen3-next-80b-a3b-thinking", max_tokens=8000,
+            reasoning_effort="medium",
+            cache_key=f"spectr_drafter_v3_{domain}_fb",
         )
-        usages.append(synth_usage)
-        drafter_model = f"council({synth_model})"
-        # If synthesis failed or is too short, fall back to longer draft
-        if not draft or len(draft) < max(len(gpt_draft), len(opus_draft)) * 0.5:
-            draft = gpt_draft if len(gpt_draft) >= len(opus_draft) else opus_draft
-            drafter_model = "gpt-5.5" if len(gpt_draft) >= len(opus_draft) else "claude-opus-4-6"
-            logger.info(f"[spectr_pipeline] council synthesis too short — using best single draft")
-    elif gpt_draft:
-        draft = gpt_draft
-        drafter_model = "gpt-5.5"
-    elif opus_draft:
-        draft = opus_draft
-        drafter_model = "claude-opus-4-6"
+        usages.append(fallback_usage)
+        drafter_model = "qwen3-thinking-nim" if draft else "failed"
     else:
-        draft = ""
-        drafter_model = "failed"
+        drafter_model = "gpt-5.5"
 
     t_draft = time.time() - t0
     logger.info(
-        f"[spectr_pipeline] COUNCIL final: {len(draft.split())} words via {drafter_model} "
-        f"({t_draft:.1f}s total)"
+        f"[spectr_pipeline] DRAFT final: {len(draft.split())} words via {drafter_model} "
+        f"({t_draft:.1f}s)"
     )
 
     # Stage 3: Critic (only on force_deep — council already self-corrects)
