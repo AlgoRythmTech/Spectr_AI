@@ -735,11 +735,45 @@ ALWAYS use the new codes for any post-01.07.2024 offence. Citing IPC/CrPC/IEA fo
   §94 (oral evidence excluded against written) — formerly IEA §92.
   §118 (presumption as to dowry death within 7 years) — formerly IEA §113B.
 
+★ PMLA 2002 — economic offences / white-collar / FinTech enforcement:
+  ★ §3 — offence of money-laundering: any process or activity connected with proceeds of crime (acquisition, possession, use, projecting/claiming as untainted).
+  ★ §4 — punishment: 3-7 years (extendable to 10 years for Schedule A offences); fine.
+  ★ §5 — provisional attachment by Director ED (180 days; confirmed by Adjudicating Authority).
+  ★ §17 — search & seizure; §19 — arrest (post-Vijay Madanlal Choudhary requires written reasons + grounds of arrest; post-Pankaj Bansal (2023) communication of grounds in writing).
+  ★ §24 — burden of proof presumption: once foundational facts established by ED, accused must rebut.
+  ★ §45 — bail twin-conditions: (i) prima facie satisfied accused not guilty, (ii) not likely to commit offence on bail. Vijay Madanlal Choudhary v. UOI (2022) SCC OnLine SC 929 upheld §45 (overruling Nikesh Tarachand Shah on this point).
+  ★ §50 — ED summons / statement: NOT statement under §161 BNSS (formerly §161 CrPC); admissible against accused. Article 20(3) self-incrimination defence rejected by SC in Vijay Madanlal.
+  ★ §65 — overrides other laws; §71 — savings.
+  ★ Key cases:
+     Vijay Madanlal Choudhary v. UOI (2022) SCC OnLine SC 929 — landmark; upheld §45 bail conditions, ECIR not equivalent to FIR, §50 statements admissible. Substantive backbone for current PMLA.
+     Pankaj Bansal v. UOI (2023) 7 SCC 488 — grounds of arrest must be communicated in writing; oral communication insufficient; arrest without written grounds = illegal.
+     Prabir Purkayastha v. State (NCT of Delhi) (2024 SC) — extended Pankaj Bansal to UAPA arrests.
+     Manish Sisodia v. ED (2024 SC) — bail in PMLA possible despite §45 where trial delay is unconscionable + custody prolonged.
+     Senthil Balaji v. Deputy Director (2023) — judicial custody legality framework.
+     Tarsem Lal v. ED (2024) — anticipatory bail in PMLA possible.
+     V. Senthil Balaji v. Deputy Director, ED (2024 SC) — recent reaffirmation on arrest discipline.
+
+★ IT ACT 2000 — for FinTech / data / cyber enforcement:
+  ★ §43 — civil compensation for unauthorized access / data theft / contaminant introduction (no upper cap, before Adjudicating Officer).
+  ★ §43A — compensation for failure to maintain reasonable security practices for "sensitive personal data" — applies to body corporate handling SPDI; will progressively yield to DPDP §8 + §33 penalty regime as DPDP becomes operational.
+  ★ §66 — hacking / dishonest data theft; §66C identity theft; §66D cheating by personation using computer resource; §66E violation of privacy (capturing private images); §66F cyber-terrorism.
+  ★ §69 — interception/monitoring/decryption directions; §69A — blocking; §69B — traffic data.
+  ★ §70 — protected systems; §70A — National Critical Information Infrastructure.
+  ★ §72 — breach of confidentiality by intermediary/officer; §72A — disclosure of information in breach of lawful contract.
+  ★ §79 — INTERMEDIARY SAFE HARBOUR (foundation of platform liability); conditions: no knowing concealment, due diligence under IT Rules 2021, expeditious takedown on actual knowledge or court order.
+  ★ Shreya Singhal v. UOI (2015) 5 SCC 1 — struck down §66A; refined §69A intermediary liability — actual knowledge = court/govt order.
+  ★ Kunal Kamra v. UOI (2024 Bom HC) — IT Rules 2023 Fact-Check Unit struck down on Article 14 + 19(1)(a) grounds.
+  ★ IT Rules 2021 (Information Technology (Intermediary Guidelines and Digital Media Ethics Code)): grievance officer, monthly compliance report, traceability for SSMI (Significant Social Media Intermediaries), takedown timelines (24-72 hours by category).
+
+★ FEMA prosecution — §13 contraventions:
+  Compounding under §15 + RBI Compounding Rules; preserve compounding right by approaching RBI before adjudication finalises. Penalty up to 3× contravention amount; fine + further penalty for continuing breach.
+
 ★ ELITE PRACTITIONER MOVES:
-  • Quash petition (BNSS §528, formerly CrPC §482) — ground in Bhajan Lal (1992 Supp 1 SCC 335) categories 1, 3, 7 (especially civil dispute dressed as criminal — Vesa Holdings v. State of Kerala 2015 8 SCC 293; Sarabjit Kaur v. State of Punjab 2023). Memo of parties, synopsis, list of dates, body, prayer, verification — Indian HC format. NEVER produce US-style "motion to dismiss".
-  • Bail jurisprudence: Sanjay Chandra v. CBI (2012 1 SCC 40) for serious economic offences; Satender Kumar Antil v. CBI (2022 10 SCC 51) for the framework; charge sheet filing is itself a "change in circumstances" justifying second bail.
-  • Police often register FIRs under IPC out of habit even post-01.07.2024. Flag this as defective; client is entitled to invocation of correct BNS sections.
-  • Recovery of stolen property is mitigation but does not extinguish offence.
+  • Quash petition (BNSS §528, formerly CrPC §482) — Bhajan Lal (1992 Supp 1 SCC 335) categories 1, 3, 7 (especially civil dispute dressed as criminal — Vesa Holdings v. State of Kerala 2015 8 SCC 293; Sarabjit Kaur v. State of Punjab 2023). Indian HC format: memo of parties, synopsis, list of dates, body, prayer, verification. NEVER US-style "motion to dismiss".
+  • Bail in economic offences: Sanjay Chandra v. CBI (2012 1 SCC 40); Satender Kumar Antil v. CBI (2022 10 SCC 51) framework; charge sheet filing is itself "change in circumstances" justifying second bail. PMLA: §45 twin-test post-Vijay Madanlal; Manish Sisodia carve-out for prolonged custody.
+  • Police often register FIRs under IPC out of habit post-01.07.2024. Flag this as defective; client entitled to invocation of correct BNS sections.
+  • For PMLA arrests: demand WRITTEN grounds of arrest under Pankaj Bansal — illegal arrest = bail entitlement.
+  • For IT Act §66/§43A or DPDP-overlap matters: jurisdictional Adjudicating Officer (IT Act) vs Data Protection Board (DPDP) — clients must file in correct forum or risk dismissal for jurisdictional defect.
 """,
 
     # ────────────────────────────────────────────────────────────────────
@@ -1186,11 +1220,43 @@ DOMAIN: CIVIL PROCEDURE & CONTRACT LAW
    Drafting must explicitly include "epidemic, pandemic, public health emergency, government-imposed lockdown, quarantine measures" — courts have held general FM clauses without specific language don't auto-cover pandemic.
    Distinguish FM (clause, suspends/excuses) from §56 frustration (operates by law, discharges contract).
 
-★ ARBITRATION — A&C Act 1996 (amended 2015, 2019, 2021):
-   §9 court interim relief; §11 appointment of arbitrators; §17 tribunal interim; §28 substantive law (post-2015: domestic disputes mandatorily Indian law); §34 set-aside; §36 enforcement; §42A statutory confidentiality.
-   Seat-venue distinction: BALCO v. Kaiser Aluminum (2012) 9 SCC 552; reaffirmed BGS SGS Soma JV v. NHPC (2020) 4 SCC 234. Specify SEAT explicitly in clause.
-   Institutional vs ad hoc — recommend institutional (MCIA, DIAC, ICA, DAC) for Indian-seated.
-   Mediation Act 2023 — pre-litigation mediation framework.
+★ ARBITRATION — A&C Act 1996 (amended 2015, 2019, 2021, 2024 amendments):
+   §7 arbitration agreement; §8 reference (court "shall" refer subject to limited examination); §9 court interim relief; §11 appointment of arbitrators; §16 kompetenz-kompetenz (tribunal's own jurisdiction); §17 tribunal interim with §27 enforcement; §28 substantive law (post-2015: domestic disputes mandatorily Indian law); §29A 12-month award timeline + 6-month extension by parties + further extension by court; §34 set-aside grounds; §36 enforcement; §37 appeals (limited); §42A statutory confidentiality (post-2019); §43 limitation (Limitation Act applies via §43, generally 3 years for cause of action).
+
+   ★ SEAT vs VENUE jurisprudence (the most-litigated arbitration question):
+     BALCO v. Kaiser Aluminum (2012) 9 SCC 552 — seat = curial law jurisdiction; foreign-seated arbitrations governed by foreign curial law; Part I default-applies to India-seated only (subject to opt-out).
+     Indus Mobile Distribution v. Datawind (2017) 7 SCC 678 — seat is "anchor"; choosing seat is choosing exclusive jurisdiction even without venue language.
+     BGS SGS Soma JV v. NHPC (2020) 4 SCC 234 — seat-venue indistinguishable in most clauses; the named place is seat unless contra indicia.
+     Mankastu Impex v. Airvisual (2020) 5 SCC 399 — "place of arbitration" labels parsed for seat intent.
+     PASL Wind Solutions v. GE Power (2021) 7 SCC 1 — two Indian parties CAN pick foreign seat.
+     IFFCO v. Bhadra Products (2018) 2 SCC 534 — composite reference to law of contract + law of arbitration agreement.
+
+   ★ §11 APPOINTMENT — the gateway:
+     Vidya Drolia v. Durga Trading (2021) 2 SCC 1 — "prima facie" review at §11 stage; arbitrability test; subject-matter that is non-arbitrable (criminal, matrimonial, insolvency, eviction under rent acts, antitrust).
+     Cox & Kings v. SAP India (2024) 6 SCC 1 — group of companies doctrine; non-signatories can be bound to arbitration where commercial common intent + tight integration.
+     N.N. Global Mercantile v. Indo Unique Flame (2023, Constitutional Bench) — unstamped/insufficiently-stamped arbitration agreement is curable defect; doesn't block §11 reference (overruling SMS Tea Estates and the prior 5-judge ruling).
+     SBI General Insurance v. Krish Spinning (2024) — pre-§11 examination is narrow; tribunal decides own jurisdiction.
+     In re: Interplay between Arbitration Agreements under A&C Act and Stamp Act 1899 (2023, 7-judge SC) — the dispositive Constitution Bench affirming N.N. Global on unstamped agreements.
+
+   ★ §34 SET-ASIDE — narrow grounds, narrowly applied:
+     Ssangyong Engineering v. NHAI (2019) 15 SCC 131 — public policy ground narrowed; "fundamental policy of Indian law" + patent illegality (only domestic awards) only.
+     Associate Builders v. DDA (2015) 3 SCC 49 — public policy contours pre-Ssangyong (still cited).
+     Renusagar Power v. General Electric (1994) Supp 1 SCC 644 — original "fundamental policy" framework for foreign awards (still good law for §48).
+     Patent illegality NOT available for foreign-seated arbitration (post-2015 amendment to §34(2A)).
+     Delhi Airport Metro v. DMRC (2022) 1 SCC 131 — Supreme Court reversal of HC interference; reinforces narrow §34 review.
+
+   ★ ENFORCEMENT (§§36, 47-49):
+     Vijay Karia v. Prysmian Cavi (2020) 11 SCC 1 — narrow §48 review for foreign awards; New York Convention discipline.
+     Centrotrade Minerals v. HCL (2017) 2 SCC 228 — two-tier arbitration valid; appellate award is the "award" for enforcement.
+     Glencore International AG v. Indian Potash Limited (2024 Del HC) — recent foreign-award enforcement principles.
+
+   ★ INTERIM RELIEF (§§9, 17):
+     Avitel Post Studioz v. HSBC PI Holdings (2020) — §9 power post-award and post-§17 tribunal grant.
+     Arcelor Mittal Nippon Steel India v. Essar Bulk Terminal (2021) — §9 jurisdiction even after tribunal constituted, but courts will defer to §17.
+
+   ★ INSTITUTIONAL DRAFTING — recommend MCIA (Mumbai), DIAC (Delhi International), ICA, DAC for India-seated; SIAC (Singapore) for India-Singapore cross-border; LCIA / ICC for international with Indian entity. Specify SEAT explicitly in clause + governing law of contract + curial law if foreign-seated.
+
+   ★ MEDIATION ACT 2023 — pre-litigation mediation framework; commercial disputes ≥₹3 lakh under Commercial Courts Act mandatorily go through pre-institution mediation. Mediation settlement = decree; enforceable like court order.
 
 ★ CPC 1908 essentials:
    Order VII plaint (rejection of plaint Order VII Rule 11); Order VIII written statement; Order XXXVII summary suit (commercial money claims); Order XXIII withdrawal/compromise; Order XXI execution.
@@ -1221,8 +1287,27 @@ DOMAIN: CONSTITUTIONAL LAW & WRIT JURISDICTION
    Burden: presumption of constitutionality favours State; petitioner shows arbitrariness (Charanjit Lal Chowdhury AIR 1951 SC 41).
    ★ DON'T apply US "rational basis" / "strict scrutiny" terminology — Indian doctrine is differently articulated.
 
-★ ARTICLE 19(1)(g) — right to trade/profession; reasonable restriction under §19(6).
-★ ARTICLE 21 — life and personal liberty; "procedure established by law" expanded post-Maneka Gandhi to include due process content; Puttaswamy (2017 — privacy as FR); Puttaswamy II (Aadhaar).
+★ ARTICLE 19(1)(g) — right to trade/profession; reasonable restriction under §19(6). Modern fintech / data-business challenges (Internet & Mobile Association of India v. RBI 2020 10 SCC 274 — RBI crypto-banking ban struck down on proportionality / Article 19(1)(g)).
+
+★ ARTICLE 21 — life and personal liberty; post-Maneka Gandhi (1978) 1 SCC 248 "procedure established by law" reads in due process and reasonableness.
+
+★ THE PRIVACY DOCTRINE — the bedrock for ALL data-protection / surveillance / Aadhaar / DPDP challenges:
+   ★ Justice K.S. Puttaswamy v. UOI (2017) 10 SCC 1 (9-judge Constitution Bench, "Puttaswamy I") — privacy is a Fundamental Right under Article 21, with informational privacy a sub-species. The PROPORTIONALITY TEST established by Puttaswamy I and refined in subsequent decisions:
+     (i) Legitimate state aim
+     (ii) Suitable means rationally connected to that aim
+     (iii) Necessity — least restrictive means available
+     (iv) Balancing — proportionate impact on the right vs the public interest
+   ★ Justice K.S. Puttaswamy v. UOI (2018) 1 SCC 809 ("Puttaswamy II" / Aadhaar) — upheld Aadhaar Act with reading-down of §57 (private use); struck down §33(2) and limited authentication purposes; data minimisation and purpose limitation embedded in constitutional doctrine.
+   ★ Anuradha Bhasin v. UOI (2020) 3 SCC 637 — internet shutdown orders must satisfy proportionality; periodic review mandated.
+   ★ Foundation for Media Professionals v. UT of J&K (2020) 5 SCC 746 — proportionality review of internet restrictions.
+   ★ Internet & Mobile Association of India v. RBI (2020) 10 SCC 274 — proportionality + Article 19(1)(g) on financial-services restrictions; demanded evidentiary basis for restrictive measures.
+   ★ Karmanya Singh Sareen v. UOI — privacy-policy enforceability against private actors (WhatsApp/Facebook); unresolved on private-actor horizontal application.
+   ★ Sabarimala (2018) — Article 14/15/25 intersection; non-discrimination doctrine.
+
+★ DPDP-CONSTITUTIONAL INTERSECTION (the live battleground):
+   ★ DPDP §17 exemptions are the most-likely-challenged provisions — particularly state-function exemption (§17(2)(a)) and notified-research exemption (§17(2)(d)). Likely Article 14 + 21 challenges on proportionality grounds (cf. Puttaswamy I framework).
+   ★ Voluntary Aadhaar use under DPDP — distinguishing pre-Aadhaar §57 jurisprudence (private use barred) vs DPDP consent regime (private use permitted on free, specific, informed consent).
+   ★ Cross-border transfer restrictions under §16 — pending operational test; sectoral regulator stricter rules can trigger Article 14 challenges if discriminatory.
 
 ★ HABEAS CORPUS:
    Liberal locus standi — Sunil Batra (II) v. Delhi Admin (1980) 3 SCC 488 (letter as petition); Kanu Sanyal v. DM (1973) 2 SCC 674; PUDR v. UOI (1982) 3 SCC 235 (Asiad workers — locus for socially disadvantaged).
@@ -1232,6 +1317,8 @@ DOMAIN: CONSTITUTIONAL LAW & WRIT JURISDICTION
 ★ PIL — Bandhua Mukti Morcha (1984) line; relaxed standing where socially disadvantaged cannot approach court directly.
 
 ★ DIRECTIVE PRINCIPLES (Part IV) — non-justiciable but interpretive aid; harmonization via Minerva Mills (1980) basic structure.
+
+★ BASIC STRUCTURE — Kesavananda Bharati (1973), Indira Nehru Gandhi (1975), Minerva Mills (1980), I.R. Coelho (2007) on judicial review, separation of powers, federalism, secularism, rule of law as immutable constitutional core.
 """,
 
     # ────────────────────────────────────────────────────────────────────
