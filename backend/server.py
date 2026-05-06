@@ -2375,16 +2375,13 @@ async def assistant_query(req: QueryRequest, request: Request, authorization: st
 
             # ═══════════════════════════════════════════════════════════════
             # ROUTER: spectr_pipeline (4-stage cascade) is now the default.
-            #   mode "depth" | "partner" → spectr_pipeline with force_deep=True
-            #                              → drafter = gpt-5.5 direct (slow, top quality)
-            #   everything else          → spectr_pipeline default tiers
-            #                              → drafter = gpt-4.1 / claude-sonnet-4-6 / 4o-mini
-            #                                via Emergent universal key (cost-efficient)
-            # If the pipeline fails we auto-fall-through to war_room_engine so
-            # the user never sees a blank response.
+            #   ALL modes → spectr_pipeline with PEAK MODELS ONLY:
+            #     GPT-5.5 (reasoning_effort=high) or Claude Opus 4.6
+            #   mode "depth" | "partner" → force_deep=True (adds critic + rewrite)
+            # If the pipeline fails we auto-fall-through to war_room_engine.
             # ═══════════════════════════════════════════════════════════════
             _mode_lower = (req.mode or "").lower()
-            _force_deep = _mode_lower in ("partner", "depth", "deep")
+            _force_deep = _mode_lower in ("partner", "depth", "deep", "research")
             _use_pipeline = True   # pipeline handles every mode now
             _pipeline_ok = False
             if _use_pipeline:
@@ -2396,7 +2393,7 @@ async def assistant_query(req: QueryRequest, request: Request, authorization: st
                         user_query=sanitized_query,
                         recent_history=req.conversation_history or [],
                         force_deep=_force_deep,
-                        timing_budget_s=180 if _force_deep else 60,
+                        timing_budget_s=180,  # council architecture needs ~90-120s; never starve it
                     )
                     response_text = result.get("response_text") or ""
                     timings = result.get("timings", {})
@@ -2597,6 +2594,8 @@ async def get_statute_context(query: str) -> str:
         "Limited Liability Partnership|LLP": ["llp", "limited liability partnership"],
         "Indian Partnership Act": ["partnership act", "partnership firm", "section 4 partnership"],
         "Securities and Exchange Board of India|SEBI": ["sebi", "insider trading", "listing", "takeover"],
+        "Digital Personal Data Protection|DPDP": ["dpdp", "data protection", "personal data", "data fiduciary", "data principal", "consent manager", "data breach", "privacy", "significant data fiduciary"],
+        "Payment and Settlement Systems|PSSA": ["pssa", "payment system", "payment aggregator", "pa licence", "pa licensing", "payment settlement", "upi", "ppi", "prepaid"],
         "Consumer Protection": ["consumer", "consumer protection", "deficiency in service", "unfair trade"],
         "RERA": ["rera", "real estate", "builder", "allottee", "possession delay"],
         "PMLA": ["pmla", "money laundering", "enforcement directorate", "ed attachment"],
@@ -5125,6 +5124,22 @@ async def startup():
         logger.warning(f"Database warm-up failed (will retry on first request): {e}")
 
     logger.info("Spectr API started successfully — Practice Operating System loaded")
+
+    # Pre-warm the spectr_pipeline retrieval surfaces (sentence_transformer load,
+    # MongoDB Atlas first query, Parallel.ai/Serper handshake) so the first
+    # real user query doesn't pay 30-60s of cold-start cost.
+    async def _warmup_spectr_pipeline():
+        try:
+            await asyncio.sleep(2)  # let other startup tasks register first
+            t0 = asyncio.get_event_loop().time()
+            ctx = await get_statute_context("Section 16 CGST input tax credit")
+            elapsed = asyncio.get_event_loop().time() - t0
+            chunks = ctx.count("[DB RECORD]") if ctx else 0
+            logger.info(f"[startup] spectr_pipeline warmup: {chunks} chunks in {elapsed:.1f}s — first user query will be fast")
+        except Exception as e:
+            logger.warning(f"[startup] spectr_pipeline warmup non-blocking error: {e}")
+
+    asyncio.create_task(_warmup_spectr_pipeline())
 
     # Seed statutory thresholds if the collection is empty
     try:
