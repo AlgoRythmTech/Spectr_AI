@@ -70,7 +70,7 @@ ZAI_MODEL_DEEP = "glm-4.6"
 # Tier            | Model                            | Surface | Why
 # ─────────────────┼──────────────────────────────────┼─────────┼──────────────
 # Drafter (only)  | gpt-5.5                          | direct  | Mandatory, effort=medium
-# Drafter (FB)    | qwen/qwen3-next-80b-a3b-thinking | NIM     | Silent fallback if 5.5 errors
+# Drafter (FB)    | mistral-large-3-675b (NIM)       | NIM     | 5.6s, non-thinking, fast failover
 # Classifier      | gpt-5.5                          | direct  | Same model, fast intent
 # Critic          | gpt-5.5                          | direct  | Same model, light pass
 # DEMO LOCK — Rohan Bagai meeting: GPT-5.5 mandatory. NO Llama, NO Claude
@@ -78,10 +78,10 @@ ZAI_MODEL_DEEP = "glm-4.6"
 MODEL_CLASSIFIER     = "gpt-5.5"
 MODEL_CRITIC         = "gpt-5.5"
 MODEL_DRAFTER_SIMPLE = "gpt-5.5"
-MODEL_DRAFTER_MEDIUM = "qwen/qwen3-next-80b-a3b-thinking"   # NIM — Qwen3 thinking mode, MoE A3B fast
+MODEL_DRAFTER_MEDIUM = "mistralai/mistral-large-3-675b-instruct-2512"  # NIM fallback — 675B Mistral, non-thinking, ~5s
 MODEL_DRAFTER_DEEP   = "gpt-5.5"
 MODEL_DRAFTER_TOP    = "gpt-5.5"                             # mandatory default
-MODEL_DRAFTER_OPUS   = "qwen/qwen3-next-80b-a3b-thinking"    # alias retained for legacy refs
+MODEL_DRAFTER_OPUS   = "mistralai/mistral-large-3-675b-instruct-2512"  # alias for legacy refs
 
 # Models that MUST be called direct OpenAI (Emergent doesn't have them)
 DIRECT_OPENAI_ONLY = {"gpt-5.5", "gpt-5", "gpt-5-mini"}
@@ -1733,10 +1733,10 @@ async def draft_memo(
                     if resp.status == 429 and is_gpt5 and NVIDIA_NIM_KEY and _depth < 2:
                         logger.warning(
                             f"Drafter {model} 429 on TPM ceiling — failing over to "
-                            f"Qwen3-Thinking on NIM (no retry wait)"
+                            f"Mistral Large 3 (NIM, no retry wait)"
                         )
                         return await draft_memo(
-                            system, user, model="qwen/qwen3-next-80b-a3b-thinking",
+                            system, user, model="mistralai/mistral-large-3-675b-instruct-2512",
                             max_tokens=max_tokens, cache_key=cache_key, _depth=_depth+1,
                         )
                     if resp.status == 429:
@@ -1793,7 +1793,7 @@ async def draft_memo(
                         return await draft_memo(system, user, model="gpt-5.5", max_tokens=max_tokens, reasoning_effort="high", cache_key=cache_key, _depth=_depth+1)
                     if surface == "openai-direct" and is_gpt5:
                         # GPT-5.5 direct failed → silent fallback to Qwen3-Thinking on NIM
-                        return await draft_memo(system, user, model="qwen/qwen3-next-80b-a3b-thinking", max_tokens=max_tokens, cache_key=cache_key, _depth=_depth+1)
+                        return await draft_memo(system, user, model="mistralai/mistral-large-3-675b-instruct-2512", max_tokens=max_tokens, cache_key=cache_key, _depth=_depth+1)
                     return "", {"model": model, "in_tokens": 0, "out_tokens": 0}
                 data = await resp.json()
                 # Defensive parsing: NIM and other OpenAI-compatible endpoints
@@ -1811,7 +1811,7 @@ async def draft_memo(
                 # empty, retry with Qwen3-Thinking on NIM (different reasoning architecture).
                 if not text.strip() and is_gpt5:
                     logger.warning(f"Drafter {model} returned empty content (reasoning consumed budget) — retrying via Qwen3-Thinking on NIM")
-                    return await draft_memo(system, user, model="qwen/qwen3-next-80b-a3b-thinking", max_tokens=max_tokens, cache_key=cache_key, _depth=_depth+1)
+                    return await draft_memo(system, user, model="mistralai/mistral-large-3-675b-instruct-2512", max_tokens=max_tokens, cache_key=cache_key, _depth=_depth+1)
                 if cached:
                     logger.info(f"[spectr_pipeline] cache hit: {cached}/{usage.get('prompt_tokens',0)} tokens cached on {model}")
                 return text, {
@@ -2425,12 +2425,12 @@ async def run_spectr_pipeline(
         logger.warning("[spectr_pipeline] GPT-5.5 returned empty — falling back to Qwen3-Thinking via NIM")
         draft, fallback_usage = await draft_memo(
             system_prompt, user_prompt,
-            model="qwen/qwen3-next-80b-a3b-thinking", max_tokens=8000,
+            model="mistralai/mistral-large-3-675b-instruct-2512", max_tokens=8000,
             reasoning_effort="medium",
             cache_key=f"spectr_drafter_v3_{domain}_fb",
         )
         usages.append(fallback_usage)
-        drafter_model = "qwen3-thinking-nim" if draft else "failed"
+        drafter_model = "mistral-large-3-nim" if draft else "failed"
     else:
         drafter_model = "gpt-5.5"
 
