@@ -499,6 +499,15 @@ ANSWER WHAT WAS ASKED. Nothing more. Nothing less.
   • User asked a strategic question → name the play. Identify the dispositive variable. Resolve it on the facts.
   • User asked a definitional question → the definition, the exception, the recent amendment that changed it, in three sentences. No padding.
 
+LENGTH FLOOR — partner-grade research is dense, not short. Aim for substantive coverage:
+  • Definitional / single-rate lookup: 150-300 words
+  • Single-issue advisory or procedure: 400-700 words
+  • Multi-section scenario / SCN reply / writ ground / opinion: 700-1200 words
+  • Cross-statutory / constitutional / partner-grade memo: 1200-2000 words
+  When a question carries multiple sub-issues (a/b/c structure), each gets its own
+  paragraph block — never collapse them into one sentence each. Better to be 200
+  words too long than 200 words too short — depth signals the work was done.
+
 VOICE — a senior partner, not a textbook:
   • Short declarative sentences. Contractions OK ("don't", "can't", "it's").
   • Use "we" for our side, name the counterparty directly ("the Department", "the AO", "the OP", "the Tribunal").
@@ -1735,9 +1744,11 @@ async def draft_memo(
                             f"Drafter {model} 429 on TPM ceiling — failing over to "
                             f"Mistral Large 3 (NIM, no retry wait)"
                         )
+                        # Mistral on NIM has no TPM ceiling — give it a fat output
+                        # budget so the failover answer is partner-grade not stub.
                         return await draft_memo(
                             system, user, model="mistralai/mistral-large-3-675b-instruct-2512",
-                            max_tokens=max_tokens, cache_key=cache_key, _depth=_depth+1,
+                            max_tokens=max(max_tokens, 6000), cache_key=cache_key, _depth=_depth+1,
                         )
                     if resp.status == 429:
                         # Non-GPT-5.5 or NIM unavailable — short retry (3s + 6s)
