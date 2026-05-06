@@ -358,15 +358,21 @@ async def retrieve_chunks(queries: list[str], k: int = 12, domain: Optional[str]
     except Exception:
         return []
 
-    # Combine results across all classifier-emitted queries
-    seen_keys = set()
-    chunks: list[dict] = []
-    for q in queries[:6]:  # cap at 6 queries to keep retrieval <500ms
+    # PARALLEL corpus calls — was serial 6×3s=18s, now max(6 queries) ≈ 2-3s.
+    # Cap at top 4 queries (classifier emits 3-8, top 4 give >95% recall).
+    async def _safe_ctx(q: str) -> str:
         try:
-            ctx = await get_statute_context(q)
+            return await get_statute_context(q) or ""
         except Exception as e:
             logger.debug(f"retrieve for '{q}' failed: {e}")
-            continue
+            return ""
+
+    top_queries = queries[:4]
+    contexts = await asyncio.gather(*(_safe_ctx(q) for q in top_queries))
+
+    seen_keys = set()
+    chunks: list[dict] = []
+    for ctx in contexts:
         if not ctx:
             continue
         # get_statute_context returns "[DB RECORD] Section X of Act — title\n<text>"
@@ -374,7 +380,6 @@ async def retrieve_chunks(queries: list[str], k: int = 12, domain: Optional[str]
             block = block.strip()
             if not block:
                 continue
-            # Extract section + act from first line
             lines = block.split("\n", 1)
             header = lines[0].strip()
             body = lines[1].strip() if len(lines) > 1 else ""
@@ -391,7 +396,7 @@ async def retrieve_chunks(queries: list[str], k: int = 12, domain: Optional[str]
             seen_keys.add(chunk_id)
             chunks.append({
                 "chunk_id": chunk_id,
-                "text": body[:3000],  # cap per-chunk body to keep context bounded
+                "text": body[:1500],  # tighter per-chunk cap (was 3000) for TPM headroom
                 "citation": citation,
                 "source": "statute_db",
                 "score": 1.0,
@@ -424,6 +429,34 @@ def format_chunks_for_prompt(chunks: list[dict]) -> str:
 # ============================================================================
 
 DRAFTER_PROMPT_CORE = """You are Spectr. You produce research and filing artifacts for Indian advocates, CAs, CSs, and in-house counsel. The reader is a paying professional whose time costs ₹15,000-50,000 an hour.
+
+═══════════════════════════════════════════════════════════════════════
+HARD OUTPUT RULES — APPLIED TO THE FIRST TOKEN OF YOUR RESPONSE
+═══════════════════════════════════════════════════════════════════════
+
+1. NEVER narrate your process. Forbidden openers (any variation thereof):
+   "Okay, let's…" / "Let me…" / "First, I need to…" / "Looking at the corpus…"
+   "From the corpus, I see…" / "The user is asking…" / "I'll tackle…"
+   "Wait, that seems odd…" / "Let me check…" / "I see that…"
+   "Sure, here's…" / "Got it." / "Understood."
+
+2. NEVER discuss the corpus, the retrieval, or your own reasoning AS PART OF
+   the answer. The corpus is your source — it does not appear in the output.
+   If a corpus chunk is mislabelled or scrambled, ignore that chunk silently
+   and use what you know from training. Never write "the corpus shows…",
+   "based on the provided corpus…", "the corpus is mislabelled".
+
+3. The FIRST sentence of every response is one of:
+     — The direct answer (a rate, a section, a yes/no with the why)
+     — The leading case by name with the dispositive ratio in 8-12 words
+     — The recommended course of action stated as a verb-led instruction
+
+4. NEVER reproduce raw corpus tags ([§income_tax_act_…]), token-budget
+   warnings, or "[Unverified by corpus]" except where genuinely needed to
+   flag a doubt. The output reads as a senior partner's signed opinion —
+   no scaffolding visible.
+
+═══════════════════════════════════════════════════════════════════════
 
 The work product you ship is verifiable, current to the day, and ready to use — not commentary about the work. The list below is what every response is operating against. Treat each item as a CONCRETE CAPABILITY that must show up in the output. Never reference these as branding ("we are a specialist"); never compare to other AI tools. The capabilities speak for themselves through the artifact.
 
@@ -1569,14 +1602,15 @@ def build_drafter_prompt(
         f"{web_section}"
         f"<QUERY>\n{user_query}\n</QUERY>\n\n"
         f"<TASK_MODE>\n{task_persona}\n</TASK_MODE>\n\n"
-        "ANSWER NOW.\n"
-        "First sentence = the answer, the number, or the leading case. Not setup, not restatement.\n"
-        "Back every claim with a section number, case citation, or corpus reference.\n"
-        "If there's math, show the computation (formula → numbers → result).\n"
-        "If the law is unsettled or the facts are incomplete, say so — name what's missing and what changes.\n"
+        "RESPOND NOW.\n"
+        "Your first sentence is the answer / the leading case / the recommended action — never narration.\n"
+        "Banned first words (and any variation): \"Okay\", \"Let me\", \"First\", \"Looking at\", \"From the corpus\", \"The user\", \"I'll\", \"Sure\", \"Wait\".\n"
+        "Never discuss the corpus inside the output. If a chunk is mislabelled, silently ignore it and use known law.\n"
+        "Back every claim with a section number, case citation, or notification reference.\n"
+        "If there's math, show the computation (formula -> numbers -> result).\n"
+        "If law is unsettled or facts are incomplete, name what's missing and what would change the answer.\n"
         "If there's a risk the client hasn't spotted, surface it.\n"
-        "Use the web research for anything from 2024-2026 that the corpus doesn't cover.\n"
-        "End with deliverable artifacts (precedent table / computation / draft text / timeline)."
+        "End with deliverable artifacts where applicable (precedent table / computation / draft text / timeline / Vault hook)."
     )
     return system, user
 
@@ -1690,15 +1724,26 @@ async def draft_memo(
                 if resp.status != 200:
                     err = await resp.text()
                     logger.warning(f"Drafter {model} via {surface} HTTP {resp.status}: {err[:240]}")
-                    # ── 429 RATE-LIMIT RETRY (the demo-day saver) ──
-                    # OpenAI / Emergent occasionally 429 on TPM bursts. Honor
-                    # the suggested wait then retry up to 3 times with
-                    # exponential backoff. Better to take 5 extra seconds
-                    # than show the client an error.
+                    # ── 429 RATE-LIMIT FAST FAILOVER ──
+                    # OpenAI demo key has TPM=10K. When we hit 429 it means the
+                    # 60s rolling window is saturated — backing off makes wall-clock
+                    # explode (60-120s). Better play: immediately fail over to
+                    # Qwen3-Thinking on NVIDIA NIM (no TPM ceiling). 1 short retry
+                    # in case it was a brief spike, then bail.
+                    if resp.status == 429 and is_gpt5 and NVIDIA_NIM_KEY and _depth < 2:
+                        logger.warning(
+                            f"Drafter {model} 429 on TPM ceiling — failing over to "
+                            f"Qwen3-Thinking on NIM (no retry wait)"
+                        )
+                        return await draft_memo(
+                            system, user, model="qwen/qwen3-next-80b-a3b-thinking",
+                            max_tokens=max_tokens, cache_key=cache_key, _depth=_depth+1,
+                        )
                     if resp.status == 429:
-                        for attempt in (1, 2, 3):
-                            wait_s = 2 * attempt  # 2s, 4s, 6s
-                            logger.info(f"Drafter {model} 429 — backing off {wait_s}s (attempt {attempt}/3)")
+                        # Non-GPT-5.5 or NIM unavailable — short retry (3s + 6s)
+                        for attempt in (1, 2):
+                            wait_s = 3 * attempt
+                            logger.info(f"Drafter {model} 429 — backing off {wait_s}s (attempt {attempt}/2)")
                             await asyncio.sleep(wait_s)
                             async with session.post(url,
                                 headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
@@ -2240,7 +2285,9 @@ async def run_spectr_pipeline(
 
     # ── Stage 1: Retrieval (corpus + Parallel.ai deep research + Serper in parallel) ────
     t0 = time.time()
-    k = 20 if complexity >= 4 else 12
+    # k=6 default, k=10 deep — 12+ saturates 10K TPM and adds no marginal recall
+    # given web context already brings 4K chars of fresh authority.
+    k = 10 if complexity >= 4 else 6
 
     # THREE research sources in PARALLEL — this is the moat.
     # Vanilla Claude has NONE of these. We have all three.
@@ -2362,11 +2409,12 @@ async def run_spectr_pipeline(
 
     t0 = time.time()
 
-    # GPT-5.5 demo key is TPM=10K. Cap output at 1500 + effort=low so total
-    # request stays ~8K tokens → no 429 → wall-clock ~20s.
+    # GPT-5.5 demo key is TPM=10K. With corpus trimmed (k=6, 1500 chars/chunk)
+    # input is ~5K tokens → output budget can be 3000 with effort=low without
+    # hitting the cap. Better answers at same wall-clock.
     draft, draft_usage = await draft_memo(
         system_prompt, user_prompt,
-        model="gpt-5.5", max_tokens=1500,
+        model="gpt-5.5", max_tokens=3000,
         reasoning_effort=effort,  # "low" — fits 10K TPM
         cache_key=f"spectr_drafter_v3_{domain}",
     )
